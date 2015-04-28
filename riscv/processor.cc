@@ -1,5 +1,6 @@
 // See LICENSE for license details.
 
+#include "bbtracker.h"
 #include "processor.h"
 #include "extension.h"
 #include "common.h"
@@ -15,6 +16,7 @@
 #include <limits.h>
 #include <stdexcept>
 #include <algorithm>
+#include "unistd.h"
 
 #undef STATE
 #define STATE state
@@ -30,6 +32,15 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   #include "encoding.h"
   #undef DECLARE_INSN
   build_opcode_map();
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  num_bb_inst = 0;
+  bbt = new bb_tracker_t(); //TODO
+  char* bbv_dir = get_current_dir_name();
+  char* bbv_file = new char[20];
+  sprintf(bbv_file,"bbv_proc_%d",id);
+  bbt->init_bb_tracker(bbv_dir,bbv_file,bb_interval);
+#endif
 }
 
 processor_t::~processor_t()
@@ -153,9 +164,22 @@ inline void processor_t::update_histogram(size_t pc)
 
 static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 {
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  reg_t opcode = fetch.insn.opcode();
+  if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
+    bb_tracker_t* bbt = p->get_bbt();
+    bbt->bb_tracker((uint64_t)pc,p->num_bb_inst);
+    p->num_bb_inst = 0;
+  } 
+#endif
+
   reg_t npc = fetch.func(p, fetch.insn, pc);
   commit_log(p->get_state(), pc, fetch.insn);
   p->update_histogram(pc);
+#ifdef RISCV_ENABLE_SIMPOINT
+  p->num_bb_inst++;
+#endif
   return npc;
 }
 

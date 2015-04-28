@@ -31,6 +31,7 @@ sim_t::sim_t(size_t nprocs, size_t mem_mb, const std::vector<std::string>& args)
     memsz0 = 1L << (sizeof(size_t) == 8 ? 32 : 30);
 
   memsz = memsz0;
+  fprintf(stderr, "Requesting target memory 0x%lx\n",(unsigned long)memsz0);
   while ((mem = (char*)calloc(1, memsz)) == NULL)
     memsz = memsz*10/11/quantum*quantum;
 
