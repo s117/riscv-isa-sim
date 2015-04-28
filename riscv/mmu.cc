@@ -4,6 +4,8 @@
 #include "sim.h"
 #include "processor.h"
 
+extern bool logging_on;
+
 mmu_t::mmu_t(char* _mem, size_t _memsz)
  : mem(_mem), memsz(_memsz), proc(NULL)
 {
@@ -42,6 +44,8 @@ void* mmu_t::refill_tlb(reg_t addr, reg_t bytes, bool store, bool fetch)
   pte_perm |= pte & PTE_V;
 
   reg_t perm = (fetch ? PTE_UX : store ? PTE_UW : PTE_UR) | PTE_V;
+  ifprintf(logging_on,stderr,"PTE Perm 0x%" PRIxreg "  Perm 0x%" PRIxreg "\n",pte_perm,perm);
+
   if(unlikely((pte_perm & perm) != perm))
   {
     if (fetch)

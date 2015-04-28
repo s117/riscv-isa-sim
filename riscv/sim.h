@@ -6,8 +6,17 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <fstream>
+#include <gzstream.h>
 #include "processor.h"
 #include "mmu.h"
+
+// ifprintf macro definition.
+#define ifprintf(condition, file, args...){	\
+    if(condition){  \
+     fprintf(file, ##args);	\
+    } \
+  }
 
 class htif_isasim_t;
 
@@ -19,7 +28,9 @@ public:
   ~sim_t();
 
   // run the simulation to completion
+  void boot();
   int run();
+  bool run(size_t n);
   bool running();
   void stop();
   void set_debug(bool value);
@@ -27,12 +38,20 @@ public:
   void set_procs_debug(bool value);
   htif_isasim_t* get_htif() { return htif.get(); }
 
+#ifdef RISCV_ENABLE_SIMPOINT
+  void set_simpoint(bool enable, size_t interval);
+#endif
+
   // deliver an IPI to a specific processor
   void send_ipi(reg_t who);
 
   // returns the number of processors in this simulator
   size_t num_cores() { return procs.size(); }
   processor_t* get_core(size_t i) { return procs.at(i); }
+
+  void init_checkpoint(std::string checkpoint_file);
+  bool create_checkpoint();
+  bool restore_checkpoint(std::string restore_file);
 
   // read one of the system control registers
   reg_t get_scr(int which);
@@ -50,6 +69,8 @@ private:
   size_t current_proc;
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
+  bool checkpointing_enabled;
+  std::string checkpoint_file;
 
   // presents a prompt for introspection into the simulation
   void interactive();
@@ -72,6 +93,18 @@ private:
   reg_t get_tohost(const std::vector<std::string>& args);
 
   friend class htif_isasim_t;
+
+
+
+  //std::fstream proc_chkpt;
+  //std::fstream restore_chkpt;
+  ogzstream proc_chkpt;
+  igzstream restore_chkpt;
+  void create_memory_checkpoint(std::ostream& memory_chkpt);
+  void restore_memory_checkpoint(std::istream& memory_chkpt);
+  void create_register_checkpoint(std::ostream& proc_chkpt);
+  void restore_proc_checkpoint(std::istream& proc_chkpt);
+
 };
 
 extern volatile bool ctrlc_pressed;

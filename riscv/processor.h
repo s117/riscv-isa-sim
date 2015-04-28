@@ -15,6 +15,7 @@ class sim_t;
 class trap_t;
 class extension_t;
 class disassembler_t;
+class bb_tracker_t;
 
 struct insn_desc_t
 {
@@ -87,17 +88,27 @@ public:
 
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
+#ifdef RISCV_ENABLE_SIMPOINT
+  uint64_t num_bb_inst;
+  bb_tracker_t* get_bbt() { return bbt; }
+  void set_simpoint(bool enable, size_t interval);
+  bool get_simpoint();
+#endif
 
 private:
   sim_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
   extension_t* ext;
   disassembler_t* disassembler;
+#ifdef RISCV_ENABLE_SIMPOINT
+  bb_tracker_t* bbt;
+#endif
   state_t state;
   uint32_t id;
   bool run; // !reset
   bool debug;
   bool histogram_enabled;
+  bool simpoint_enabled;
   bool rv64;
   bool serialized;
 
@@ -110,6 +121,7 @@ private:
   void serialize(); // collapse into defined architectural state
   reg_t take_trap(trap_t& t, reg_t epc); // take an exception
   void disasm(insn_t insn); // disassemble and print an instruction
+  void disasm(insn_t insn,reg_t pc); // disassemble and print an instruction
 
   friend class sim_t;
   friend class mmu_t;

@@ -21,6 +21,7 @@ static void help()
   fprintf(stderr, "  -m <n>             Provide <n> MB of target memory\n");
   fprintf(stderr, "  -d                 Interactive debug mode\n");
   fprintf(stderr, "  -g                 Track histogram of PCs\n");
+  fprintf(stderr, "  -s <Interval>      Dump basic block vector profile for Simpoint with specified interval\n");
   fprintf(stderr, "  -h                 Print this help message\n");
   fprintf(stderr, "  --ic=<S>:<W>:<B>   Instantiate a cache model with S sets,\n");
   fprintf(stderr, "  --dc=<S>:<W>:<B>     W ways, and B-byte blocks (with S and\n");
@@ -34,6 +35,10 @@ int main(int argc, char** argv)
 {
   bool debug = false;
   bool histogram = false;
+  bool simpoint = false;
+  size_t simpoint_interval = 100000000;
+  bool checkpoint = false;
+  size_t checkpoint_skip_amt = 0;
   size_t nprocs = 1;
   size_t mem_mb = 0;
   std::unique_ptr<icache_sim_t> ic;
@@ -41,13 +46,20 @@ int main(int argc, char** argv)
   std::unique_ptr<cache_sim_t> l2;
   std::function<extension_t*()> extension;
 
+  uint64_t stop_amt           = 0xffffffffffffffff;
+  std::string checkpoint_file = "";
+
   option_parser_t parser;
   parser.help(&help);
   parser.option('h', 0, 0, [&](const char* s){help();});
   parser.option('d', 0, 0, [&](const char* s){debug = true;});
   parser.option('g', 0, 0, [&](const char* s){histogram = true;});
+  parser.option('s', 0, 1, [&](const char* s){simpoint = true; simpoint_interval = atol(s);});
   parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
   parser.option('m', 0, 1, [&](const char* s){mem_mb = atoi(s);});
+  parser.option('e', 0, 1, [&](const char* s){stop_amt = atoll(s);});
+  parser.option('c', 0, 1, [&](const char* s){checkpoint = true; checkpoint_skip_amt = atoll(s);});
+  parser.option('f', 0, 1, [&](const char* s){checkpoint_file = s;});
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
   parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
@@ -77,5 +89,61 @@ int main(int argc, char** argv)
 
   s.set_debug(debug);
   s.set_histogram(histogram);
-  return s.run();
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  s.set_simpoint(simpoint, simpoint_interval);
+#else
+  if(simpoint){
+    fprintf(stderr, "Spike wasn't compiled with Simpoint support.");
+    exit(-1);
+  }
+#endif
+
+  int htif_code;
+
+  if(checkpoint && (checkpoint_file == ""))
+  {
+    checkpoint_file = "checkpoint_"+std::to_string(checkpoint_skip_amt);
+  }
+
+  // Initialize the processor before dumping/restoring checkpoint
+  s.boot();
+
+  if(checkpoint)
+  {
+    if(checkpoint_file == "")
+    {
+      checkpoint_file = "checkpoint_"+std::to_string(checkpoint_skip_amt);
+    }
+
+    s.init_checkpoint(checkpoint_file);
+
+    // Runs Spike
+    fprintf(stderr, "Skipping for %lu instructions before checkpointing\n",checkpoint_skip_amt);
+    htif_code = s.run(checkpoint_skip_amt);
+    // Stop simulation if HTIF returns non-zero code
+    if(!htif_code) return htif_code;
+
+    fprintf(stderr, "Creating Checkpoint\n");
+    htif_code = s.create_checkpoint();
+    // Stop simulation if HTIF returns non-zero code
+    if(!htif_code){
+      return htif_code;
+      fprintf(stderr, "Checkpoint Creation Failed: HTIF Exit Code %d\n",htif_code);
+    }
+
+    //fprintf(stderr, "Checkpoint Created: HTIF Exit Code %d\n",htif_code);
+  }
+  else if (checkpoint_file != "")
+  {
+    fprintf(stderr, "Restoring checkpoint from %s\n",checkpoint_file.c_str());
+    s.restore_checkpoint(checkpoint_file);
+    htif_code = s.run(stop_amt);
+  }
+  else
+  {
+    htif_code = s.run(stop_amt);
+  }
+
+  return htif_code;
 }

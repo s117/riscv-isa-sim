@@ -9,6 +9,9 @@
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #undef HAVE_LIBPTHREAD
 
+/* Define to 1 if you have the `libz' library (-lz). */
+#undef HAVE_LIBZ
+
 /* Define if subproject MCPPBS_SPROJ_NORM is enabled */
 #undef HWACHA_ENABLED
 
@@ -23,9 +26,6 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
-
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
@@ -44,6 +44,9 @@
 
 /* Enable PC histogram generation */
 #undef RISCV_ENABLE_HISTOGRAM
+
+/* Enable Basic Block Vector generation for simpoint tool */
+#undef RISCV_ENABLE_SIMPOINT
 
 /* Define if subproject MCPPBS_SPROJ_NORM is enabled */
 #undef SOFTFLOAT_ENABLED
