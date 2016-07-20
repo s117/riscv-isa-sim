@@ -14,6 +14,14 @@
 #include <fesvr/option_parser.h>
 using namespace std;
 
+template< typename T >
+std::string int_to_hex( T i )
+{
+  std::stringstream stream;
+  stream << "0x" << std::hex << i;
+  return stream.str();
+}
+
 int main(int argc, char** argv)
 {
   string s;
@@ -39,6 +47,21 @@ int main(int argc, char** argv)
         bits = bits << (64 - nbits) >> (64 - nbits);
 
       string dis = d.disassemble(bits);
+
+      /* The following additional code prints useful 
+       * decode information along with the ABI compatible
+       * disassembly */
+      insn_t insn = (insn_t)bits;
+      string rs1 ("rs1=");
+      string rs2 (" rs2=");
+      string rd  (" rd=");
+      string csr (" csr=");
+      rs1 += int_to_hex(insn.rs1());
+      rs2 += int_to_hex(insn.rs2());
+      rd  += int_to_hex(insn.rd());
+      csr += int_to_hex(insn.csr());
+      dis = dis + " <" + rs1 + rs2 + rd + csr +">";
+
       s = s.substr(0, start) + dis + s.substr(end+1);
       start += dis.length();
     }
