@@ -52,15 +52,19 @@ int main(int argc, char** argv)
        * decode information along with the ABI compatible
        * disassembly */
       insn_t insn = (insn_t)bits;
-      string rs1 ("rs1=");
+      string op  ("op=");
+      string fn3 (" fn3=");
+      string rs1 (" rs1=");
       string rs2 (" rs2=");
       string rd  (" rd=");
       string csr (" csr=");
+      op  += int_to_hex(insn.opcode());
+      fn3 += int_to_hex(insn.funct3());
       rs1 += int_to_hex(insn.rs1());
       rs2 += int_to_hex(insn.rs2());
       rd  += int_to_hex(insn.rd());
       csr += int_to_hex(insn.csr());
-      dis = dis + " <" + rs1 + rs2 + rd + csr +">";
+      dis = dis + " <" + op + fn3 + rs1 + rs2 + rd + csr +">";
 
       s = s.substr(0, start) + dis + s.substr(end+1);
       start += dis.length();
