@@ -55,6 +55,13 @@ processor_t::~processor_t()
   }
 #endif
 
+//#ifdef RISCV_ENABLE_SIMPOINT
+//  if (simpoint_enabled)
+//  {
+//      bbt->flush_bb_tracker();
+//  }
+//#endif
+
   delete disassembler;
 }
 
@@ -98,6 +105,17 @@ void processor_t::set_debug(bool value)
 void processor_t::set_histogram(bool value)
 {
   histogram_enabled = value;
+}
+
+void processor_t::set_simpoint(bool enable, size_t interval)
+{
+  simpoint_enabled = enable;
+  bbt->set_interval_size(interval);
+}
+
+bool processor_t::get_simpoint()
+{
+  return simpoint_enabled;
 }
 
 void processor_t::reset(bool value)
@@ -168,19 +186,25 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 {
 
 #ifdef RISCV_ENABLE_SIMPOINT
-  reg_t opcode = fetch.insn.opcode();
-  if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
-    bb_tracker_t* bbt = p->get_bbt();
-    bbt->bb_tracker((uint64_t)pc,p->num_bb_inst);
-    p->num_bb_inst = 0;
-  } 
+  if (p->get_simpoint())
+  {
+    reg_t opcode = fetch.insn.opcode();
+    if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
+      bb_tracker_t* bbt = p->get_bbt();
+      bbt->bb_tracker((uint64_t)pc,p->num_bb_inst);
+      p->num_bb_inst = 0;
+    } 
+  }
 #endif
 
   reg_t npc = fetch.func(p, fetch.insn, pc);
   commit_log(p->get_state(), pc, fetch.insn);
   p->update_histogram(pc);
 #ifdef RISCV_ENABLE_SIMPOINT
-  p->num_bb_inst++;
+  if (p->get_simpoint())
+  {
+    p->num_bb_inst++;
+  }
 #endif
   return npc;
 }

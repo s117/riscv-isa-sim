@@ -154,3 +154,8 @@ void bb_tracker_t::bb_tracker(uint64_t pc, uint64_t num_inst)
     print_bb_hash(bb_hash);
   }
 }
+
+void bb_tracker_t::set_interval_size(uint64_t m_interval_size)
+{
+  interval_size = m_interval_size;
+}

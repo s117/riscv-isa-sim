@@ -171,6 +171,13 @@ void sim_t::set_histogram(bool value)
   }
 }
 
+void sim_t::set_simpoint(bool enable, size_t interval)
+{
+  for (size_t i = 0; i < procs.size(); i++) {
+    procs[i]->set_simpoint(enable, interval);
+  }
+}
+
 void sim_t::set_procs_debug(bool value)
 {
   for (size_t i=0; i< procs.size(); i++)

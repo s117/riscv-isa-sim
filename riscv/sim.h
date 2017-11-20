@@ -25,6 +25,7 @@ public:
   void stop();
   void set_debug(bool value);
   void set_histogram(bool value);
+  void set_simpoint(bool enable, size_t interval);
   void set_procs_debug(bool value);
   htif_isasim_t* get_htif() { return htif.get(); }
 

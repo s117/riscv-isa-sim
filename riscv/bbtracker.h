@@ -55,6 +55,7 @@ class bb_tracker_t{
     ~bb_tracker_t();
 
     void init_bb_tracker (char* m_dir_name, char* m_out_name, uint64_t m_interval_size);
+    void set_interval_size(size_t m_interval_size);
  
 
     /* Called at each CTRL op, marking the end of a basic block.  The pc of the last 

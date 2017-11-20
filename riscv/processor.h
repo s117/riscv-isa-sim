@@ -72,6 +72,8 @@ public:
 
   void set_debug(bool value);
   void set_histogram(bool value);
+  void set_simpoint(bool enable, size_t interval);
+  bool get_simpoint();
   void reset(bool value);
   void step(size_t n); // run for n cycles
   void deliver_ipi(); // register an interprocessor interrupt
@@ -106,6 +108,7 @@ private:
   bool run; // !reset
   bool debug;
   bool histogram_enabled;
+  bool simpoint_enabled;
   bool rv64;
   bool serialized;
 
