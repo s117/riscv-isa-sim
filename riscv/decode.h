@@ -18,6 +18,11 @@ typedef int64_t sreg_t;
 typedef uint64_t reg_t;
 typedef uint64_t freg_t;
 
+#define PRIsreg PRIi64 
+#define PRIreg  PRIu64 
+#define PRIxreg PRIx64 
+#define PRIfreg PRIu64 
+
 const int NXPR = 32;
 const int NFPR = 32;
 
@@ -70,7 +75,6 @@ public:
   uint64_t rm() { return x(12, 3); }
   uint64_t csr() { return x(20, 12); }
   uint64_t opcode() {return x(0, 7); }
-
   uint64_t funct3() {return x(12, 3); }
   uint64_t funct7() {return x(25, 7); }
   uint64_t funct12() {return x(20, 12); }

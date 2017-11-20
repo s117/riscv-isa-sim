@@ -20,6 +20,7 @@ public:
 
   // run the simulation to completion
   int run();
+  int run(size_t n);
   bool running();
   void stop();
   void set_debug(bool value);
@@ -33,6 +34,10 @@ public:
   // returns the number of processors in this simulator
   size_t num_cores() { return procs.size(); }
   processor_t* get_core(size_t i) { return procs.at(i); }
+
+  void init_checkpoint(std::string _checkpoint_file);
+  bool create_checkpoint();
+  bool restore_checkpoint(std::string restore_file);
 
   // read one of the system control registers
   reg_t get_scr(int which);
@@ -50,6 +55,8 @@ private:
   size_t current_proc;
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
+  bool checkpointing_enabled;
+  std::string checkpoint_file;
 
   // presents a prompt for introspection into the simulation
   void interactive();
@@ -72,6 +79,14 @@ private:
   reg_t get_tohost(const std::vector<std::string>& args);
 
   friend class htif_isasim_t;
+
+
+
+  void create_memory_checkpoint(std::string memory_file);
+  void restore_memory_checkpoint(std::string memory_file);
+  void create_proc_checkpoint(std::string proc_file);
+  void restore_proc_checkpoint(std::string proc_file);
+
 };
 
 extern volatile bool ctrlc_pressed;

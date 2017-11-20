@@ -41,6 +41,10 @@ int main(int argc, char** argv)
   std::unique_ptr<cache_sim_t> l2;
   std::function<extension_t*()> extension;
 
+  uint64_t skip_amt           = 0xffffffffffffffff;
+  uint64_t stop_amt           = 0xffffffffffffffff;
+  std::string checkpoint_file = "";
+
   option_parser_t parser;
   parser.help(&help);
   parser.option('h', 0, 0, [&](const char* s){help();});
@@ -48,6 +52,9 @@ int main(int argc, char** argv)
   parser.option('g', 0, 0, [&](const char* s){histogram = true;});
   parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
   parser.option('m', 0, 1, [&](const char* s){mem_mb = atoi(s);});
+  parser.option('s', 0, 1, [&](const char* s){skip_amt = atoll(s); skip_enable = true;});
+  parser.option('e', 0, 1, [&](const char* s){stop_amt = atoll(s); use_stop_amt = true;});
+  parser.option('c', 0, 1, [&](const char* s){checkpoint_file = s;});
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
   parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
@@ -77,5 +84,33 @@ int main(int argc, char** argv)
 
   s.set_debug(debug);
   s.set_histogram(histogram);
-  return s.run();
+
+  int htif_code;
+
+  if(checkpoint_file != "")
+  {
+    s->init_checkpoint(checkpoint_file);
+
+    // Runs Spike
+    fprintf(stderr, "Fast skipping for %lu instructions\n",skip_amt);
+    htif_code = s->run(skip_amt);
+    // Stop simulation if HTIF returns non-zero code
+    if(!htif_code) return htif_code;
+
+    fprintf(stderr, "Creating Checkpoint\n");
+    htif_code = s->create_checkpoint();
+    // Stop simulation if HTIF returns non-zero code
+    if(!htif_code){
+      return htif_code;
+      fprintf(stderr, "Checkpoint Creation Failed: HTIF Exit Code %d\n",htif_code);
+    }
+
+    fprintf(stderr, "Checkpoint Created: HTIF Exit Code %d\n",htif_code);
+  }
+  else
+  {
+    htif_code = s->run();
+  }
+
+  return htif_code;
 }

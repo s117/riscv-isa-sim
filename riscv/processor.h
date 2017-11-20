@@ -118,6 +118,7 @@ private:
   void serialize(); // collapse into defined architectural state
   reg_t take_trap(trap_t& t, reg_t epc); // take an exception
   void disasm(insn_t insn); // disassemble and print an instruction
+  void disasm(insn_t insn,reg_t pc); // disassemble and print an instruction
 
   friend class sim_t;
   friend class mmu_t;

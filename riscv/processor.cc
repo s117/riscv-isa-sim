@@ -102,6 +102,8 @@ void processor_t::set_histogram(bool value)
 
 void processor_t::reset(bool value)
 {
+
+  fprintf(stderr, "******* Resetting core ********** \n");
   if (run == !value)
     return;
   run = !value;
@@ -218,6 +220,7 @@ void processor_t::step(size_t n)
         insn_fetch_t fetch = mmu->load_insn(pc);
         disasm(fetch.insn);
         pc = execute_insn(this, pc, fetch);
+        fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
       }
     }
     else while (instret < n)
@@ -228,7 +231,9 @@ void processor_t::step(size_t n)
       #define ICACHE_ACCESS(idx) { \
         insn_fetch_t fetch = ic_entry->data; \
         ic_entry++; \
+        disasm(fetch.insn,pc); \
         pc = execute_insn(this, pc, fetch); \
+        fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
         instret++; \
         if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
         if (unlikely(ic_entry->tag != pc)) break; \
@@ -251,8 +256,9 @@ void processor_t::step(size_t n)
 
 reg_t processor_t::take_trap(trap_t& t, reg_t epc)
 {
-  if (debug)
-    fprintf(stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
+  //TODO: Add this back
+  //if (debug)
+    ifprintf(logging_on,stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
             id, t.name(), epc);
 
   // switch to supervisor, set previous supervisor bit, disable interrupts
@@ -278,6 +284,13 @@ void processor_t::disasm(insn_t insn)
   uint64_t bits = insn.bits() & ((1ULL << (8 * insn_length(insn.bits()))) - 1);
   fprintf(stderr, "core %3d: 0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
           id, state.pc, bits, disassembler->disassemble(insn).c_str());
+}
+
+void processor_t::disasm(insn_t insn,reg_t pc)
+{
+  uint64_t bits = insn.bits() & ((1ULL << (8 * insn_length(insn.bits()))) - 1);
+  fprintf(stderr, "core %3d: 0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
+          id, pc, bits, disassembler->disassemble(insn).c_str());
 }
 
 void processor_t::set_pcr(int which, reg_t val)
@@ -354,6 +367,7 @@ void processor_t::set_fromhost(reg_t val)
 {
   set_interrupt(IRQ_HOST, val != 0);
   state.fromhost = val;
+  ifprintf(logging_on,stderr,"%s setting FROMHOST to %lu  STATUS = %u\n",proc_type,val,state.sr);
 }
 
 reg_t processor_t::get_pcr(int which)
