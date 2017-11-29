@@ -9,6 +9,13 @@
 #include "processor.h"
 #include "mmu.h"
 
+// ifprintf macro definition.
+#define ifprintf(condition, file, args...){	\
+    if(condition){  \
+     fprintf(file, ##args);	\
+    } \
+  }
+
 class htif_isasim_t;
 
 // this class encapsulates the processors and memory in a RISC-V machine.
@@ -20,7 +27,7 @@ public:
 
   // run the simulation to completion
   int run();
-  int run(size_t n);
+  bool run(size_t n);
   bool running();
   void stop();
   void set_debug(bool value);

@@ -15,6 +15,8 @@
 //include <stdint.h>
 #include <fstream>
 
+extern bool logging_on;
+
 htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
   : htif_pthread_t(args), sim(_sim), reset(true), seqno(1)
 {
@@ -29,7 +31,7 @@ htif_isasim_t::~htif_isasim_t()
 // transactions at any point in time can be completed.
 bool htif_isasim_t::tick()
 {
-  ifprintf(logging_on,stderr,"****%s Ticking HTIF at inst COUNT %lu****\n",sim->get_core(0)->get_proc_type(),sim->get_core(0)->get_state()->count);
+  ifprintf(logging_on,stderr,"****Ticking HTIF at inst COUNT %lu****\n",sim->get_core(0)->get_state()->count);
   // If simulation complete then say that nothing more to do.
   // done() returns false when the system is resetting or when the simulator has stopped running
   // Returns true at other times

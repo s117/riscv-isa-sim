@@ -21,6 +21,8 @@
 #undef STATE
 #define STATE state
 
+extern bool logging_on;
+
 processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   : sim(_sim), mmu(_mmu), ext(NULL), disassembler(new disassembler_t),
     id(_id), run(false), debug(false), serialized(false)
@@ -244,6 +246,7 @@ void processor_t::step(size_t n)
         insn_fetch_t fetch = mmu->load_insn(pc);
         disasm(fetch.insn);
         pc = execute_insn(this, pc, fetch);
+
         fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
       }
     }
@@ -255,9 +258,11 @@ void processor_t::step(size_t n)
       #define ICACHE_ACCESS(idx) { \
         insn_fetch_t fetch = ic_entry->data; \
         ic_entry++; \
-        disasm(fetch.insn,pc); \
+        if(logging_on) { \
+          disasm(fetch.insn,pc); \
+        } \
         pc = execute_insn(this, pc, fetch); \
-        fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
+        ifprintf(logging_on,stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
         instret++; \
         if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
         if (unlikely(ic_entry->tag != pc)) break; \
@@ -391,7 +396,7 @@ void processor_t::set_fromhost(reg_t val)
 {
   set_interrupt(IRQ_HOST, val != 0);
   state.fromhost = val;
-  ifprintf(logging_on,stderr,"%s setting FROMHOST to %lu  STATUS = %u\n",proc_type,val,state.sr);
+  ifprintf(logging_on,stderr,"setting FROMHOST to %lu  STATUS = %u\n",val,state.sr);
 }
 
 reg_t processor_t::get_pcr(int which)

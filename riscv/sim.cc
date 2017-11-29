@@ -8,6 +8,10 @@
 #include <cstdlib>
 #include <cassert>
 #include <signal.h>
+#include <iostream>
+#include <fstream>
+
+bool logging_on             = false;
 
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
@@ -110,8 +114,6 @@ void sim_t::step(size_t n)
 // Currently supports only one core - can be easily extended to all cores
 bool sim_t::run(size_t n)
 {
-  bool old_debug = get_procs_debug();
-
   bool htif_return = true;
   size_t total_retired = 0;
   size_t steps = 0;
@@ -245,8 +247,7 @@ void sim_t::create_proc_checkpoint(std::string proc_file)
   proc_chkpt.write((char *)state,sizeof(state_t));
   proc_chkpt.close();
 
-  fprintf(stderr,"Checkpointed State for %s:\n",proc_type == MICRO_SIM ? "micro_sim" : "isa_sim");
-  procs[current_proc]->get_state()->dump(stderr);
+  fprintf(stderr,"Checkpointed State for %s:\n","isa_sim");
 }
 
 void sim_t::restore_memory_checkpoint(std::string memory_file)
@@ -284,7 +285,6 @@ void sim_t::restore_proc_checkpoint(std::string proc_file)
   proc_chkpt.close();
 
   fprintf(stderr,"State for %s:\n","isa_sim");
-  procs[current_proc]->get_state()->dump(stderr);
 
   fprintf(stderr,"Done restoring proc state from %s\n",proc_file.c_str());
 }

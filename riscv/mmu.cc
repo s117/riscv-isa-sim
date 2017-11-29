@@ -4,6 +4,8 @@
 #include "sim.h"
 #include "processor.h"
 
+extern bool logging_on;
+
 mmu_t::mmu_t(char* _mem, size_t _memsz)
  : mem(_mem), memsz(_memsz), proc(NULL)
 {

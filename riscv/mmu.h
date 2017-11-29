@@ -65,7 +65,7 @@ public:
     void store_##type(reg_t addr, type##_t val) { \
       void* paddr = translate(addr, sizeof(type##_t), true, false); \
       *(type##_t*)paddr = val; \
-      fprintf(stderr,"Storing addr 0x%" PRIx64 " paddr 0x%" PRIx64 "\n",addr,(reg_t)paddr);  \
+      /*fprintf(stderr,"Storing addr 0x%" PRIxreg " paddr 0x%" PRIxreg "\n",addr,(reg_t)paddr);*/  \
     }
 
   // store value to memory at aligned address
