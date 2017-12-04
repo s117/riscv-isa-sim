@@ -98,6 +98,9 @@ int main(int argc, char** argv)
     checkpoint_file = "checkpoint_"+std::to_string(checkpoint_skip_amt);
   }
 
+  // Initialize the processor before dumping/restoring checkpoint
+  s.boot();
+
   if(checkpoint)
   {
     if(checkpoint_file == "")

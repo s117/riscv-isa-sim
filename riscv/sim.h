@@ -26,6 +26,7 @@ public:
   ~sim_t();
 
   // run the simulation to completion
+  void boot();
   int run();
   bool run(size_t n);
   bool running();
@@ -90,10 +91,10 @@ private:
 
 
 
-  void create_memory_checkpoint(std::string memory_file);
-  void restore_memory_checkpoint(std::string memory_file);
-  void create_proc_checkpoint(std::string proc_file);
-  void restore_proc_checkpoint(std::string proc_file);
+  void create_memory_checkpoint(std::fstream& memory_chkpt);
+  void restore_memory_checkpoint(std::fstream& memory_chkpt);
+  void create_proc_checkpoint(std::fstream& proc_chkpt);
+  void restore_proc_checkpoint(std::fstream& proc_chkpt);
 
 };
 
