@@ -46,7 +46,7 @@ public:
   size_t num_cores() { return procs.size(); }
   processor_t* get_core(size_t i) { return procs.at(i); }
 
-  void init_checkpoint(std::string _checkpoint_file);
+  void init_checkpoint(std::string checkpoint_file);
   bool create_checkpoint();
   bool restore_checkpoint(std::string restore_file);
 
@@ -93,14 +93,14 @@ private:
 
 
 
-  std::fstream proc_chkpt;
-  std::fstream restore_chkpt;
-  //std::ogzstream proc_chkpt;
-  //std::igzstream restore_chkpt;
-  void create_memory_checkpoint(std::fstream& memory_chkpt);
-  void restore_memory_checkpoint(std::fstream& memory_chkpt);
-  void create_proc_checkpoint(std::fstream& proc_chkpt);
-  void restore_proc_checkpoint(std::fstream& proc_chkpt);
+  //std::fstream proc_chkpt;
+  //std::fstream restore_chkpt;
+  ogzstream proc_chkpt;
+  igzstream restore_chkpt;
+  void create_memory_checkpoint(std::ostream& memory_chkpt);
+  void restore_memory_checkpoint(std::istream& memory_chkpt);
+  void create_register_checkpoint(std::ostream& proc_chkpt);
+  void restore_proc_checkpoint(std::istream& proc_chkpt);
 
 };
 

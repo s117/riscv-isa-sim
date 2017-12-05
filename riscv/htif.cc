@@ -229,7 +229,7 @@ void htif_isasim_t::setup_replay_state(replay_pkt_t *hdr)
 }
 
 //bool htif_isasim_t::restore_checkpoint(std::string restore_file)
-bool htif_isasim_t::restore_checkpoint(std::fstream& restore)
+bool htif_isasim_t::restore_checkpoint(std::istream& restore)
 {
   if (done())
     return false;
@@ -279,7 +279,7 @@ bool htif_isasim_t::restore_checkpoint(std::fstream& restore)
     else if(!token1.compare("END_HTIF_CHECKPOINT"))
     {
       // HTIF checkpoint restore complete
-      fprintf(stderr,"Done restoring Htif state\n");
+      //fprintf(stderr,"Done restoring HTIF state\n");
       //Read in the rest of the line so that correct token is read in the next iteration
       std::string dummy_line;
       std::getline(restore,dummy_line); 
@@ -307,8 +307,7 @@ bool htif_isasim_t::restore_checkpoint(std::fstream& restore)
 
 }
 
-//void htif_isasim_t::start_checkpointing(std::string checkpoint_file)
-void htif_isasim_t::start_checkpointing(std::fstream& checkpoint_file)
+void htif_isasim_t::start_checkpointing(std::ostream& checkpoint_file)
 {
   checkpointing_active = true;
   this->checkpoint = &checkpoint_file;

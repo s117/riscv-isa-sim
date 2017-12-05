@@ -124,7 +124,7 @@ int main(int argc, char** argv)
       fprintf(stderr, "Checkpoint Creation Failed: HTIF Exit Code %d\n",htif_code);
     }
 
-    fprintf(stderr, "Checkpoint Created: HTIF Exit Code %d\n",htif_code);
+    //fprintf(stderr, "Checkpoint Created: HTIF Exit Code %d\n",htif_code);
   }
   else if (checkpoint_file != "")
   {
