@@ -9,6 +9,9 @@
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #undef HAVE_LIBPTHREAD
 
+/* Define to 1 if you have the `pthread' library (-lpthread). */
+#undef HAVE_LIBZ
+
 /* Define if subproject MCPPBS_SPROJ_NORM is enabled */
 #undef HWACHA_ENABLED
 

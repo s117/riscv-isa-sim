@@ -18,7 +18,7 @@
 extern bool logging_on;
 
 htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
-  : htif_pthread_t(args), sim(_sim), reset(true), seqno(1)
+  : htif_pthread_t(args), sim(_sim), reset(true), seqno(1), checkpoint(NULL)
 {
     checkpointing_active = false;
 }
@@ -86,10 +86,11 @@ void htif_isasim_t::tick_once()
         buf[i] = sim->debug_mmu->load_uint64((hdr.addr+i)*HTIF_DATA_ALIGN);
 
       if(checkpointing_active){
-        fprintf(checkpoint,"READ_MEM %ld %ld ",hdr.addr,hdr.data_size);
-        for (size_t i = 0; i < hdr.data_size; i++)
-          fprintf(checkpoint,"%ld ",buf[i]);
-        fprintf(checkpoint,"\n");
+        *checkpoint << "READ_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
+        for (size_t i = 0; i < hdr.data_size; i++){
+          *checkpoint << buf[i] << " ";
+        }
+        *checkpoint << std::endl;
       }
 
       send(buf, hdr.data_size * sizeof(buf[0]));
@@ -104,11 +105,11 @@ void htif_isasim_t::tick_once()
         sim->debug_mmu->store_uint64((hdr.addr+i)*HTIF_DATA_ALIGN, buf[i]);
 
       if(checkpointing_active){
-        fprintf(checkpoint,"WRITE_MEM %ld %ld ",hdr.addr,hdr.data_size);
+        *checkpoint << "WRITE_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
         for (size_t i = 0; i < hdr.data_size; i++){
-          fprintf(checkpoint,"%ld ",buf[i]);
+          *checkpoint << buf[i] << " ";
         }
-        fprintf(checkpoint,"\n");
+        *checkpoint << std::endl;
       }
 
       packet_header_t ack(HTIF_CMD_ACK, seqno, 0, 0);
@@ -133,7 +134,7 @@ void htif_isasim_t::tick_once()
       {
         uint64_t scr = sim->get_scr(regno);
         if(checkpointing_active){
-          fprintf(checkpoint,"%s %ld %ld %ld %ld\n","MOD_SCR",coreid,regno,scr,scr);
+          *checkpoint << "MOD_SCR " << coreid << " " << regno << " " << scr << " " << scr << std::endl;
         }
         send(&scr, sizeof(scr));
         break;
@@ -180,7 +181,7 @@ void htif_isasim_t::tick_once()
       // Print TOHOST content only when something significant happens)
       if((regno != (CSR_TOHOST & 0x1f)) || ((old_val != 0) || (old_val != new_val))){
         if(checkpointing_active){
-         fprintf(checkpoint,"%s %ld %ld %ld %ld\n","MOD_SCR",coreid,regno,old_val,new_val);
+          *checkpoint << "MOD_SCR " << coreid << " " << regno << " " << old_val << " " << new_val << std::endl;
         }
       }
       send(&old_val, sizeof(old_val));
@@ -227,7 +228,8 @@ void htif_isasim_t::setup_replay_state(replay_pkt_t *hdr)
   }
 }
 
-bool htif_isasim_t::restore_checkpoint(std::string restore_file)
+//bool htif_isasim_t::restore_checkpoint(std::string restore_file)
+bool htif_isasim_t::restore_checkpoint(std::fstream& restore)
 {
   if (done())
     return false;
@@ -242,9 +244,6 @@ bool htif_isasim_t::restore_checkpoint(std::string restore_file)
   // the init sequence is complete.
   // If reset is low (normal operation) tick only once to complete a single pending transaction
   //do tick_once(); while (reset);
-
-  fprintf(stderr,"Trying to restore htif state from %s\n",restore_file.c_str());
-  std::ifstream restore(restore_file.c_str());
 
   FILE* restore_log = fopen("restore.htif","w");
 
@@ -277,6 +276,17 @@ bool htif_isasim_t::restore_checkpoint(std::string restore_file)
       restore >> pkt.old_regval;
       restore >> pkt.new_regval;
     } 
+    else if(!token1.compare("END_HTIF_CHECKPOINT"))
+    {
+      // HTIF checkpoint restore complete
+      fprintf(stderr,"Done restoring Htif state\n");
+      //Read in the rest of the line so that correct token is read in the next iteration
+      std::string dummy_line;
+      std::getline(restore,dummy_line); 
+      // Must tick to maintain the sequence of HTIF operations
+      tick_once();
+      break;
+    }
     else
     {
       //Read in the rest of the line so that correct token is read in the next iteration
@@ -291,22 +301,25 @@ bool htif_isasim_t::restore_checkpoint(std::string restore_file)
     tick_once();
   }
 
-  fprintf(stderr,"Done restoring htif state from %s\n",restore_file.c_str());
   fclose(restore_log);
 
   return true;
 
 }
 
-void htif_isasim_t::start_checkpointing(std::string checkpoint_file)
+//void htif_isasim_t::start_checkpointing(std::string checkpoint_file)
+void htif_isasim_t::start_checkpointing(std::fstream& checkpoint_file)
 {
   checkpointing_active = true;
-  this->checkpoint     = fopen(checkpoint_file.c_str(), "w")  ;
+  this->checkpoint = &checkpoint_file;
 }
 
 void htif_isasim_t::stop_checkpointing()
 {
+  if(checkpointing_active){
+   *checkpoint << "END_HTIF_CHECKPOINT 0 0 0" << std::endl;
+  }
+
   checkpointing_active = false;
-  fclose(this->checkpoint);
 }
 

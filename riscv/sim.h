@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <fstream>
+#include <gzstream.h>
 #include "processor.h"
 #include "mmu.h"
 
@@ -91,6 +93,10 @@ private:
 
 
 
+  std::fstream proc_chkpt;
+  std::fstream restore_chkpt;
+  //std::ogzstream proc_chkpt;
+  //std::igzstream restore_chkpt;
   void create_memory_checkpoint(std::fstream& memory_chkpt);
   void restore_memory_checkpoint(std::fstream& memory_chkpt);
   void create_proc_checkpoint(std::fstream& proc_chkpt);

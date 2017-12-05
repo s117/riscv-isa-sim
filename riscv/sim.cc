@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <iostream>
 #include <fstream>
+#include <gzstream.h>
 
 bool logging_on             = false;
 
@@ -197,7 +198,12 @@ void sim_t::init_checkpoint(std::string _checkpoint_file)
 {
   checkpointing_enabled = true; 
   checkpoint_file = _checkpoint_file;
-  htif->start_checkpointing(checkpoint_file+".syscall");
+  proc_chkpt.open(checkpoint_file, std::ios::out | std::ios::binary);
+  if ( ! proc_chkpt.good()) {
+        std::cerr << "ERROR: Opening file `" << checkpoint_file << "' failed.\n";
+        exit(0);
+  }
+  htif->start_checkpointing(proc_chkpt);
 }
 
 bool sim_t::create_checkpoint()
@@ -205,12 +211,18 @@ bool sim_t::create_checkpoint()
   bool htif_return = true;
 
   htif->stop_checkpointing();
+  fprintf(stderr,"Checkpointed HTIF state\n");
+  fflush(0);
 
-  std::fstream proc_chkpt;
-  proc_chkpt.open(checkpoint_file+".proc", std::ios::out | std::ios::binary);
-  create_memory_checkpoint(proc_chkpt);//checkpoint_file+".memory");
-  create_proc_checkpoint(proc_chkpt);//checkpoint_file+".proc");
+  create_memory_checkpoint(proc_chkpt);
+  fprintf(stderr,"Checkpointed memory state\n");
+  fflush(0);
 
+  create_proc_checkpoint(proc_chkpt);
+  fprintf(stderr,"Checkpointed register state\n");
+  fflush(0);
+
+  proc_chkpt.close();
   return htif_return;
 }
 
@@ -218,68 +230,48 @@ bool sim_t::restore_checkpoint(std::string restore_file)
 {
   bool htif_return = true;
 
-  fprintf(stderr,"Trying to restore checkpoint from %s.*\n",restore_file.c_str());
-  // This tick will restore the checkpoint.
-	htif_return = htif->restore_checkpoint(restore_file+".syscall");
-
-  fprintf(stderr,"Trying to restore proc/memory state from %s.proc\n",restore_file.c_str());
+  fprintf(stderr,"Trying to restore HTIF checkpoint from %s\n",restore_file.c_str());
   fflush(0);
-  std::fstream proc_chkpt;
-  proc_chkpt.open (restore_file+".proc", std::ios::in | std::ios::binary);
-  restore_memory_checkpoint(proc_chkpt);//restore_file+".memory");
-  restore_proc_checkpoint(proc_chkpt);//restore_file+".proc");
-  fprintf(stderr,"Done restoring proc/memory state from %s.proc\n",restore_file.c_str());
+  restore_chkpt.open (restore_file, std::ios::in | std::ios::binary);
+  if ( ! proc_chkpt.good()) {
+        std::cerr << "ERROR: Opening file `" << checkpoint_file << "' failed.\n";
+	      return false;
+  }
 
-  fprintf(stderr,"Done restoring checkpoint from %s.*\n",restore_file.c_str());
+  // This tick will restore the checkpoint.
+	htif_return = htif->restore_checkpoint(restore_chkpt);
+  fprintf(stderr,"Done restoring HTIF checkpoint from %s\n",restore_file.c_str());
+
+  fprintf(stderr,"Trying to restore proc/memory state from %s\n",restore_file.c_str());
+  fflush(0);
+  restore_memory_checkpoint(restore_chkpt);
+  restore_proc_checkpoint(restore_chkpt);
+  restore_chkpt.close();
+  fprintf(stderr,"Done restoring proc/memory state from %s\n",restore_file.c_str());
 
   return htif_return;
 }
 
 void sim_t::create_memory_checkpoint(std::fstream& memory_chkpt)
 {
-
-  //std::fstream memory_chkpt;
-  //memory_chkpt.open (memory_file, std::ios::out | std::ios::binary);
-  //uint64_t buf[1024];
-  //for (size_t i = 0; i < 0x80000; i++){
-  //  for (size_t j = 0; i < 1024; i++){
-  //    buf[j] = debug_mmu->load_uint64((i*1024)+(j*8));
-  //  }
-  //  memory_chkpt.write((char *)&buf[0],1024*8);
-  //}
   uint64_t signature = 0xbaadbeefdeadbeef;
   memory_chkpt.write((char*)&signature,8);
   memory_chkpt.write((char*)&memsz,sizeof(memsz));
   memory_chkpt.write(mem,memsz);
-  //memory_chkpt.close();
 }
 
 void sim_t::create_proc_checkpoint(std::fstream& proc_chkpt)
 {
-  //std::fstream proc_chkpt;
-  //proc_chkpt.open (proc_file, std::ios::out | std::ios::binary);
   state_t *state = procs[current_proc]->get_state();
   uint64_t signature = 0xdeadbeefbaadbeef;
   proc_chkpt.write((char*)&signature,8);
   proc_chkpt.write((char *)state,sizeof(state_t));
-  //proc_chkpt.close();
 
   fprintf(stderr,"Checkpointed State for %s:\n","isa_sim");
 }
 
 void sim_t::restore_memory_checkpoint(std::fstream& memory_chkpt)
 {
-  //fprintf(stderr,"Trying to restore memory state from %s\n",memory_file.c_str());
-  //fflush(0);
-  //std::fstream memory_chkpt;
-  //memory_chkpt.open (memory_file, std::ios::in | std::ios::binary);
-  //uint64_t buf[1024];
-  //for (size_t i = 0; i < 0x80000; i++){
-  //  memory_chkpt.read((char *)&buf[0],1024*8);
-  //  for (size_t j = 0; i < 1024; i++){
-  //    debug_mmu->store_uint64(((i*1024)+(j*8)),buf[j]);
-  //  }
-  //}
   uint64_t signature;
   uint64_t chkpt_memsz;
   memory_chkpt.read((char*)&signature,8);
@@ -289,24 +281,15 @@ void sim_t::restore_memory_checkpoint(std::fstream& memory_chkpt)
   assert(memsz == chkpt_memsz);
   memory_chkpt.read(mem,memsz);
   memory_chkpt.close();
-  //fprintf(stderr,"Done restoring memory state from %s\n",memory_file.c_str());
 }
 
 void sim_t::restore_proc_checkpoint(std::fstream& proc_chkpt)
 {
-  //fprintf(stderr,"Trying to restore proc state from %s\n",proc_chkpt.c_str());
-  //fflush(0);
-  //std::fstream proc_chkpt;
-  //proc_chkpt.open (proc_file, std::ios::in | std::ios::binary);
   state_t *state = procs[0]->get_state();
   uint64_t signature;
   proc_chkpt.read((char*)&signature,8);
   assert(signature = 0xdeadbeefbaadbeef);
   proc_chkpt.read((char *)state,sizeof(state_t));
   proc_chkpt.close();
-
-  fprintf(stderr,"State for %s:\n","isa_sim");
-
-  //fprintf(stderr,"Done restoring proc state from %s\n",proc_file.c_str());
 }
 
