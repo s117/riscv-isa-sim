@@ -35,9 +35,12 @@ public:
   void stop();
   void set_debug(bool value);
   void set_histogram(bool value);
-  void set_simpoint(bool enable, size_t interval);
   void set_procs_debug(bool value);
   htif_isasim_t* get_htif() { return htif.get(); }
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  void set_simpoint(bool enable, size_t interval);
+#endif
 
   // deliver an IPI to a specific processor
   void send_ipi(reg_t who);

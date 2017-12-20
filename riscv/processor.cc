@@ -109,6 +109,7 @@ void processor_t::set_histogram(bool value)
   histogram_enabled = value;
 }
 
+#ifdef RISCV_ENABLE_SIMPOINT
 void processor_t::set_simpoint(bool enable, size_t interval)
 {
   simpoint_enabled = enable;
@@ -119,6 +120,7 @@ bool processor_t::get_simpoint()
 {
   return simpoint_enabled;
 }
+#endif
 
 void processor_t::reset(bool value)
 {

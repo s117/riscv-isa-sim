@@ -72,8 +72,6 @@ public:
 
   void set_debug(bool value);
   void set_histogram(bool value);
-  void set_simpoint(bool enable, size_t interval);
-  bool get_simpoint();
   void reset(bool value);
   void step(size_t n); // run for n cycles
   void deliver_ipi(); // register an interprocessor interrupt
@@ -93,6 +91,8 @@ public:
 #ifdef RISCV_ENABLE_SIMPOINT
   uint64_t num_bb_inst;
   bb_tracker_t* get_bbt() { return bbt; }
+  void set_simpoint(bool enable, size_t interval);
+  bool get_simpoint();
 #endif
 
 private:

@@ -89,7 +89,15 @@ int main(int argc, char** argv)
 
   s.set_debug(debug);
   s.set_histogram(histogram);
+
+#ifdef RISCV_ENABLE_SIMPOINT
   s.set_simpoint(simpoint, simpoint_interval);
+#else
+  if(simpoint){
+    fprintf(stderr, "Spike wasn't compiled with Simpoint support.");
+    exit(-1);
+  }
+#endif
 
   int htif_code;
 
