@@ -5,3 +5,7 @@ autom4te.cache/
 *.o
 *.d
 .gdb_history
+.autotools
+.cproject
+.project
+.settings
