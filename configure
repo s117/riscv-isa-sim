@@ -676,7 +676,6 @@ infodir
 docdir
 oldincludedir
 includedir
-runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -703,6 +702,7 @@ enable_stow
 enable_optional_subprojects
 with_isa
 with_varch
+enable_simpoint
 enable_commitlog
 enable_histogram
 enable_dirty
@@ -760,7 +760,6 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
-runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1013,15 +1012,6 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
-  -runstatedir | --runstatedir | --runstatedi | --runstated \
-  | --runstate | --runstat | --runsta | --runst | --runs \
-  | --run | --ru | --r)
-    ac_prev=runstatedir ;;
-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
-  | --run=* | --ru=* | --r=*)
-    runstatedir=$ac_optarg ;;
-
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1159,7 +1149,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir runstatedir
+		libdir localedir mandir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1312,7 +1302,6 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -1349,6 +1338,8 @@ Optional Features:
   --enable-stow           Enable stow-based install
   --enable-optional-subprojects
                           Enable all optional subprojects
+  --enable-simpoint       Enable Basic Block Vector generation for simpoint
+                          tool
   --enable-commitlog      Enable commit log generation
   --enable-histogram      Enable PC histogram generation
   --enable-dirty          Enable hardware management of PTE accessed and dirty
@@ -4400,9 +4391,9 @@ fi
 # Default compiler flags
 #-------------------------------------------------------------------------
 
-CFLAGS="-Wall -Wno-unused -g -O2"
+CFLAGS="-Wall -Wno-unused -g -Og"
 
-CXXFLAGS="-Wall -Wno-unused -g -O2 -std=c++11"
+CXXFLAGS="-Wall -Wno-unused -g -Og -std=c++11"
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether the linker accepts -Wl,--export-dynamic" >&5
 $as_echo_n "checking whether the linker accepts -Wl,--export-dynamic... " >&6; }
@@ -4744,6 +4735,67 @@ else
   as_fn_error $? "libpthread is required" "$LINENO" 5
 fi
 
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for gzread in -lz" >&5
+$as_echo_n "checking for gzread in -lz... " >&6; }
+if ${ac_cv_lib_z_gzread+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lz  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char gzread ();
+int
+main ()
+{
+return gzread ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_link "$LINENO"; then :
+  ac_cv_lib_z_gzread=yes
+else
+  ac_cv_lib_z_gzread=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_z_gzread" >&5
+$as_echo "$ac_cv_lib_z_gzread" >&6; }
+if test "x$ac_cv_lib_z_gzread" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBZ 1
+_ACEOF
+
+  LIBS="-lz $LIBS"
+
+else
+  as_fn_error $? "libz is required" "$LINENO" 5
+fi
+
+
+# Check whether --enable-simpoint was given.
+if test "${enable_simpoint+set}" = set; then :
+  enableval=$enable_simpoint;
+fi
+
+if test "x$enable_simpoint" = "xyes"; then :
+
+
+$as_echo "#define RISCV_ENABLE_SIMPOINT /**/" >>confdefs.h
+
+
+fi
 
 # Check whether --enable-commitlog was given.
 if test "${enable_commitlog+set}" = set; then :
