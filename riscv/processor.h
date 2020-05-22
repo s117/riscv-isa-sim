@@ -450,6 +450,7 @@ private:
   bool halt_on_reset;
 
   bool simpoint_enabled;
+//  std::string bbv_file;
   bb_tracker_t* bbt;
 
   std::vector<insn_desc_t> instructions;

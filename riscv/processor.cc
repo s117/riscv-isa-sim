@@ -38,15 +38,6 @@ processor_t::processor_t(const char* isa, const char* varch, simif_t* sim,
     for (auto disasm_insn : ext->get_disasms())
       disassembler->add_insn(disasm_insn);
 
-#ifdef RISCV_ENABLE_SIMPOINT
-  num_bb_inst = 0;
-  bbt = new bb_tracker_t();
-  char* bbv_dir = get_current_dir_name();
-  char* bbv_file = new char[20];
-  sprintf(bbv_file,"bbv_proc_%d",id);
-  bbt->init_bb_tracker(bbv_dir,bbv_file,bb_interval);
-#endif
-
   reset();
 }
 
@@ -60,7 +51,8 @@ processor_t::~processor_t()
       fprintf(stderr, "%0" PRIx64 " %" PRIu64 "\n", it.first, it.second);
   }
 #endif
-
+  if (bbt)
+    delete bbt;
   delete mmu;
   delete disassembler;
 }
@@ -273,12 +265,31 @@ void processor_t::set_simpoint(bool enable, uint64_t interval)
 {
   simpoint_enabled = enable;
   if (enable) {
-#ifndef RISCV_ENABLE_SIMPOINT
+
+#ifdef RISCV_ENABLE_SIMPOINT
+
+    char* bbv_dir = get_current_dir_name();
+    std::string bbv_file = "bbv_proc_";
+    bbv_file += std::to_string(id);
+
+    if (bbt)
+      delete bbt;
+    bbt = new bb_tracker_t();
+
+    num_bb_inst = 0;
+
+    bbt->init_bb_tracker(bbv_dir, bbv_file.c_str(), interval);
+
+    free(bbv_dir);
+
+#else
+
     fprintf(stderr, "SimPoint support has not been properly enabled;");
     fprintf(stderr, " please re-build the riscv-isa-sim project using \"configure --enable-simpoint\".\n");
     abort();
+
 #endif
-    bbt->set_interval_size(interval);
+
   }
 }
 
