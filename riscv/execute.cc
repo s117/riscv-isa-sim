@@ -1,5 +1,6 @@
 // See LICENSE for license details.
 
+#include "bbtracker.h"
 #include "processor.h"
 #include "mmu.h"
 #include <cassert>
@@ -91,6 +92,19 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
     }
     p->update_histogram(pc);
   }
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  if (p->get_simpoint()) {
+    reg_t opcode = fetch.insn.opcode();
+    if (opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH) {
+      bb_tracker_t* bbt = p->get_bbt();
+      bbt->bb_tracker((uint64_t) pc, p->num_bb_inst);
+      p->num_bb_inst = 0;
+    }
+    p->num_bb_inst++;
+  }
+#endif
+
   return npc;
 }
 

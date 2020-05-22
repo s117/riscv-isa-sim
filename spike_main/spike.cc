@@ -25,6 +25,8 @@ static void help(int exit_code = 1)
   fprintf(stderr, "                          at base addresses a and b (with 4 KiB alignment)\n");
   fprintf(stderr, "  -d                    Interactive debug mode\n");
   fprintf(stderr, "  -g                    Track histogram of PCs\n");
+  fprintf(stderr, "  -s <interval>         Dump basic block vector profile for Simpoint\n");
+  fprintf(stderr, "                          with specified interval\n");
   fprintf(stderr, "  -l                    Generate a log of execution\n");
   fprintf(stderr, "  -h, --help            Print this help message\n");
   fprintf(stderr, "  -H                    Start halted, allowing a debugger to connect\n");
@@ -105,6 +107,8 @@ int main(int argc, char** argv)
   bool debug = false;
   bool halted = false;
   bool histogram = false;
+  bool simpoint = false;
+  size_t simpoint_interval = 100000000;
   bool log = false;
   bool dump_dts = false;
   bool dtb_enabled = true;
@@ -194,6 +198,7 @@ int main(int argc, char** argv)
   parser.option('h', "help", 0, [&](const char* s){help(0);});
   parser.option('d', 0, 0, [&](const char* s){debug = true;});
   parser.option('g', 0, 0, [&](const char* s){histogram = true;});
+  parser.option('s', 0, 1, [&](const char* s){simpoint = true; simpoint_interval = atol(s);});
   parser.option('l', 0, 0, [&](const char* s){log = true;});
   parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
   parser.option('m', 0, 1, [&](const char* s){mems = make_mems(s);});
@@ -275,6 +280,7 @@ int main(int argc, char** argv)
   s.set_debug(debug);
   s.set_log(log);
   s.set_histogram(histogram);
+  s.set_simpoint(simpoint, simpoint_interval);
   s.set_log_commits(log_commits);
 
   auto return_code = s.run();

@@ -35,6 +35,11 @@ const int NFPR = 32;
 const int NVPR = 32;
 const int NCSR = 4096;
 
+#define PRIsreg PRIi64
+#define PRIreg  PRIu64
+#define PRIxreg PRIx64
+#define PRIfreg PRIu64
+
 #define X_RA 1
 #define X_SP 2
 
@@ -95,6 +100,14 @@ public:
   uint64_t rs3() { return x(27, 5); }
   uint64_t rm() { return x(12, 3); }
   uint64_t csr() { return x(20, 12); }
+  uint64_t opcode() {return x(0, 7); }
+  uint64_t funct3() {return x(12, 3); }
+  uint64_t funct7() {return x(25, 7); }
+  uint64_t funct12() {return x(20, 12); }
+  uint64_t funct5() {return x(27, 5); }
+  uint64_t fmt() {return x(25, 2); }
+  uint32_t ldst_size() {return (1 << x(12, 2)); }
+  bool     ldst_sign() {return !x(14, 1); }  // unsigned if 1 signed if 0
 
   int64_t rvc_imm() { return x(2, 5) + (xs(12, 1) << 5); }
   int64_t rvc_zimm() { return x(2, 5) + (x(12, 1) << 5); }

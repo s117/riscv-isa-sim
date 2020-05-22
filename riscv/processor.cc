@@ -1,5 +1,6 @@
 // See LICENSE for license details.
 
+#include "bbtracker.h"
 #include "processor.h"
 #include "extension.h"
 #include "common.h"
@@ -16,6 +17,7 @@
 #include <stdexcept>
 #include <string>
 #include <algorithm>
+#include <unistd.h>
 
 #undef STATE
 #define STATE state
@@ -35,6 +37,15 @@ processor_t::processor_t(const char* isa, const char* varch, simif_t* sim,
   if (ext)
     for (auto disasm_insn : ext->get_disasms())
       disassembler->add_insn(disasm_insn);
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  num_bb_inst = 0;
+  bbt = new bb_tracker_t();
+  char* bbv_dir = get_current_dir_name();
+  char* bbv_file = new char[20];
+  sprintf(bbv_file,"bbv_proc_%d",id);
+  bbt->init_bb_tracker(bbv_dir,bbv_file,bb_interval);
+#endif
 
   reset();
 }
@@ -256,6 +267,24 @@ void processor_t::set_log_commits(bool value)
     abort();
   }
 #endif
+}
+
+void processor_t::set_simpoint(bool enable, uint64_t interval)
+{
+  simpoint_enabled = enable;
+  if (enable) {
+#ifndef RISCV_ENABLE_SIMPOINT
+    fprintf(stderr, "SimPoint support has not been properly enabled;");
+    fprintf(stderr, " please re-build the riscv-isa-sim project using \"configure --enable-simpoint\".\n");
+    abort();
+#endif
+    bbt->set_interval_size(interval);
+  }
+}
+
+bool processor_t::get_simpoint()
+{
+  return simpoint_enabled;
 }
 
 void processor_t::reset()

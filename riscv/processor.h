@@ -19,6 +19,7 @@ class simif_t;
 class trap_t;
 class extension_t;
 class disassembler_t;
+class bb_tracker_t;
 
 struct insn_desc_t
 {
@@ -427,6 +428,12 @@ public:
 
   void trigger_updated();
 
+  void set_simpoint(bool enable, uint64_t interval);
+  bool get_simpoint();
+  bb_tracker_t* get_bbt() { return bbt; }
+
+  uint64_t num_bb_inst;
+
 private:
   simif_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
@@ -441,6 +448,9 @@ private:
   bool histogram_enabled;
   bool log_commits_enabled;
   bool halt_on_reset;
+
+  bool simpoint_enabled;
+  bb_tracker_t* bbt;
 
   std::vector<insn_desc_t> instructions;
   std::map<reg_t,uint64_t> pc_histogram;

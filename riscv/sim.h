@@ -33,6 +33,7 @@ public:
   void set_debug(bool value);
   void set_log(bool value);
   void set_histogram(bool value);
+  void set_simpoint(bool enable, uint64_t interval);
   void set_log_commits(bool value);
   void set_procs_debug(bool value);
   void set_dtb_enabled(bool value) {
