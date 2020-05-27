@@ -1,6 +1,6 @@
 set(
         dummy_rocc_subproject_deps
-        spike_main
+        ac_config
         riscv
         softfloat
 )
@@ -10,12 +10,11 @@ set(
         dummy_rocc.cc
 )
 
-# TODO: complete this target
-#add_library(
-#        dummy_rocc SHARED
-#        ${dummy_rocc_srcs}
-#)
-#
-#target_link_libraries(
-#        dummy_rocc ${dummy_rocc_subproject_deps}
-#)
+add_library(
+        dummy_rocc MODULE
+        ${dummy_rocc_srcs}
+)
+
+target_link_libraries(
+        dummy_rocc ${dummy_rocc_subproject_deps}
+)

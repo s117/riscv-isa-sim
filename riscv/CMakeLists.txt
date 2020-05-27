@@ -75,3 +75,5 @@ target_link_libraries(riscv ${CMAKE_DL_LIBS})
 target_link_libraries(riscv ZLIB::ZLIB)
 target_link_libraries(riscv fesvr)
 target_link_libraries(riscv softfloat)
+
+target_compile_options(riscv PRIVATE "-fPIC")
