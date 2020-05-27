@@ -235,9 +235,8 @@ add_library(
         ${softfloat_hdrs}
 )
 
-target_compile_options(softfloat PUBLIC "-fPIC")
+target_include_directories(softfloat PUBLIC .)
 
-target_include_directories(
-        softfloat PUBLIC
-        .
-)
+target_link_libraries(softfloat ac_config)
+
+target_compile_options(softfloat PRIVATE "-fPIC")

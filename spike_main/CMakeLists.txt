@@ -1,22 +1,22 @@
 set(
         spike_main_subproject_deps
+        ac_config
         fesvr
         softfloat
         riscv
 )
 
-
 add_executable(spike spike.cc)
-target_link_libraries(spike fesvr softfloat riscv)
+target_link_libraries(spike ${spike_main_subproject_deps})
 
 add_executable(spike-dasm spike-dasm.cc)
-target_link_libraries(spike-dasm fesvr softfloat riscv)
+target_link_libraries(spike-dasm ${spike_main_subproject_deps})
 
 add_executable(spike-log-parser spike-log-parser.cc)
-target_link_libraries(spike-log-parser fesvr softfloat riscv)
+target_link_libraries(spike-log-parser ${spike_main_subproject_deps})
 
 add_executable(xspike xspike.cc)
-target_link_libraries(xspike fesvr softfloat riscv)
+target_link_libraries(xspike ${spike_main_subproject_deps})
 
 add_executable(termios-xspike termios-xspike.cc)
-target_link_libraries(termios-xspike fesvr softfloat riscv)
+target_link_libraries(termios-xspike ${spike_main_subproject_deps})

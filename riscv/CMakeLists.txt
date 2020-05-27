@@ -1,5 +1,6 @@
+# RISCV
 find_package(ZLIB)
-include(${CMAKE_CURRENT_SOURCE_DIR}/generating_rules.cmake)
+include(./generating_rules.cmake)
 
 set(
         riscv_hdrs
@@ -58,21 +59,18 @@ set(
 
 
 add_library(
-        riscv
+        riscv STATIC
         ${riscv_srcs}
         ${riscv_hdrs}
 )
 
-target_include_directories(
-        riscv PUBLIC
-        .
-)
+target_include_directories(riscv PUBLIC .)
+# for statement like "#include <fesvr/htif.h>"
+target_include_directories(riscv PUBLIC ${PROJECT_SOURCE_DIR})
+# for including the generated code
+target_include_directories(riscv PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-target_include_directories(
-        riscv PRIVATE
-        ${CMAKE_CURRENT_BINARY_DIR}
-)
-
+target_link_libraries(riscv ac_config)
 target_link_libraries(riscv ${CMAKE_DL_LIBS})
 target_link_libraries(riscv ZLIB::ZLIB)
 target_link_libraries(riscv fesvr)

@@ -1,3 +1,4 @@
+# FESVR
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -45,24 +46,18 @@ add_library(
         ${fesvr_hdrs}
 )
 
-target_compile_options(fesvr PUBLIC "-fPIC")
+target_include_directories(fesvr PUBLIC .)
+target_include_directories(fesvr PRIVATE ../riscv)
 
 target_link_libraries(fesvr Threads::Threads)
+target_link_libraries(fesvr ac_config)
 
-target_include_directories(
-        fesvr PUBLIC
-        .
-)
+target_compile_options(fesvr PRIVATE "-fPIC")
 
-target_include_directories(
-        fesvr PRIVATE
-        ../riscv
-)
-
+# ELF2HEX
 add_executable(
         elf2hex elf2hex.cc
 )
 
-target_link_libraries(
-        elf2hex fesvr
-)
+target_link_libraries(elf2hex ac_config)
+target_link_libraries(elf2hex fesvr)
