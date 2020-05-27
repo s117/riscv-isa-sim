@@ -9,3 +9,5 @@ autom4te.cache/
 .cproject
 .project
 .settings
+.idea
+cmake*
