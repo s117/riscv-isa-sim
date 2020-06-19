@@ -53,8 +53,9 @@ public:
 
   ~bb_tracker_t();
 
-  void init_bb_tracker(const char *m_dir_name, const char *m_out_name, uint64_t m_interval_size);
+  void init_bb_tracker(const char *m_dir_name, const char *m_out_name);
 
+  void set_interval_size(uint64_t m_interval_size);
 
   /* Called at each CTRL op, marking the end of a basic block.  The pc of the last
    instruction indexes into the basic block hash, and the counter is inceremented
@@ -63,3 +64,4 @@ public:
 };
 
 #endif
+

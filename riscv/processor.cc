@@ -40,7 +40,7 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   bbt = new bb_tracker_t();
   std::string bbv_file = std::string("bbv_proc_") + std::to_string(id);
   char* bbv_dir = get_current_dir_name();
-  bbt->init_bb_tracker(bbv_dir, bbv_file.c_str(), interval);
+  bbt->init_bb_tracker(bbv_dir, bbv_file.c_str());
   free(bbv_dir);
 #endif
 }
@@ -561,3 +561,4 @@ void processor_t::register_extension(extension_t* x)
   ext = x;
   x->set_processor(this);
 }
+

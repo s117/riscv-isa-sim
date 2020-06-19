@@ -30,10 +30,8 @@ bb_tracker_t::~bb_tracker_t() {
 }
 
 
-void bb_tracker_t::init_bb_tracker(const char *dir_name, const char *out_name, uint64_t m_interval_size) {
+void bb_tracker_t::init_bb_tracker(const char *dir_name, const char *out_name) {
   int64_t i;
-
-  interval_size = m_interval_size;
 
   /* initialize hash ptr table */
   for (i = 0; i < bb_size; i++)
@@ -157,3 +155,8 @@ void bb_tracker_t::bb_tracker(uint64_t pc, uint64_t num_inst) {
     print_bb_hash();
   }
 }
+
+void bb_tracker_t::set_interval_size(uint64_t m_interval_size) {
+  interval_size = m_interval_size;
+}
+
