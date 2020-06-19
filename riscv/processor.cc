@@ -37,11 +37,11 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
 
 #ifdef RISCV_ENABLE_SIMPOINT
   num_bb_inst = 0;
-  bbt = new bb_tracker_t(); //TODO
+  bbt = new bb_tracker_t();
+  std::string bbv_file = std::string("bbv_proc_") + std::to_string(id);
   char* bbv_dir = get_current_dir_name();
-  char* bbv_file = new char[20];
-  sprintf(bbv_file,"bbv_proc_%d",id);
-  bbt->init_bb_tracker(bbv_dir,bbv_file,bb_interval);
+  bbt->init_bb_tracker(bbv_dir, bbv_file.c_str(), interval);
+  free(bbv_dir);
 #endif
 }
 
@@ -57,12 +57,9 @@ processor_t::~processor_t()
   }
 #endif
 
-//#ifdef RISCV_ENABLE_SIMPOINT
-//  if (simpoint_enabled)
-//  {
-//      bbt->flush_bb_tracker();
-//  }
-//#endif
+#ifdef RISCV_ENABLE_SIMPOINT
+  delete bbt;
+#endif
 
   delete disassembler;
 }
