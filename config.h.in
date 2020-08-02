@@ -9,7 +9,7 @@
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #undef HAVE_LIBPTHREAD
 
-/* Define to 1 if you have the `libz' library (-lz). */
+/* Define to 1 if you have the `z' library (-lz). */
 #undef HAVE_LIBZ
 
 /* Define if subproject MCPPBS_SPROJ_NORM is enabled */
@@ -26,6 +26,9 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
