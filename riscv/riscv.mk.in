@@ -23,6 +23,7 @@ riscv_hdrs = \
 	mulhi.h \
 	bbtracker.h	\
 	gzstream.h	\
+	ckpt_desc_reader.h \
 
 riscv_precompiled_hdrs = \
 	insn_template.h \
@@ -41,6 +42,7 @@ riscv_srcs = \
 	regnames.cc \
 	bbtracker.cc	\
 	gzstream.cc	\
+	ckpt_desc_reader.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs =

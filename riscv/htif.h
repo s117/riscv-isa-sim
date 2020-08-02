@@ -5,6 +5,7 @@
 
 #include <fesvr/htif_pthread.h>
 #include <fstream>
+#include <sstream>
 //#include <gzstream.h>
 
 class sim_t;
@@ -46,7 +47,8 @@ public:
   bool tick();
   bool done();
   bool restore_checkpoint(std::istream& restore);
-  void start_checkpointing(std::ostream& checkpoint_file);
+  void start_checkpointing();
+  void output_checkpointing(std::ostream& checkpoint_file);
   void stop_checkpointing();
 
 private:
@@ -57,7 +59,7 @@ private:
   bool checkpointing_active;
 
   //std::fstream* checkpoint;
-  std::ostream* checkpoint;
+  std::stringstream* checkpoint;
 
   void tick_once();
 };

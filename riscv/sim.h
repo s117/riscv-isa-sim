@@ -49,8 +49,8 @@ public:
   size_t num_cores() { return procs.size(); }
   processor_t* get_core(size_t i) { return procs.at(i); }
 
-  void init_checkpoint(std::string checkpoint_file);
-  bool create_checkpoint();
+  void init_checkpoint();
+  bool create_checkpoint(std::string checkpoint_file);
   bool restore_checkpoint(std::string restore_file);
 
   // read one of the system control registers
@@ -70,7 +70,6 @@ private:
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
   bool checkpointing_enabled;
-  std::string checkpoint_file;
 
   // presents a prompt for introspection into the simulation
   void interactive();

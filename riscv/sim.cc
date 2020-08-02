@@ -196,28 +196,26 @@ void sim_t::set_procs_debug(bool value)
     procs[i]->set_debug(value);
 }
 
-void sim_t::init_checkpoint(std::string checkpoint_file)
+void sim_t::init_checkpoint()
 {
+  checkpointing_enabled = true;
+  htif->start_checkpointing();
+}
+
+bool sim_t::create_checkpoint(std::string checkpoint_file)
+{
+  bool htif_return = true;
   // Check if file name has .gz extension. If not, append .gz to the name
   if(checkpoint_file.substr(checkpoint_file.find_last_of(".") + 1) != "gz") {
     checkpoint_file = checkpoint_file+".gz";
   }
 
-  checkpointing_enabled = true; 
-  this->checkpoint_file = checkpoint_file;
   proc_chkpt.open(checkpoint_file.c_str(), std::ios::out | std::ios::binary);
   if ( ! proc_chkpt.good()) {
     std::cerr << "ERROR: Opening file `" << checkpoint_file << "' failed.\n";
     exit(0);
   }
-  htif->start_checkpointing(proc_chkpt);
-}
-
-bool sim_t::create_checkpoint()
-{
-  bool htif_return = true;
-
-  htif->stop_checkpointing();
+  htif->output_checkpointing(proc_chkpt);
   fprintf(stderr,"Checkpointed HTIF state\n");
   fflush(0);
 

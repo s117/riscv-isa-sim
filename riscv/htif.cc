@@ -25,6 +25,9 @@ htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
 
 htif_isasim_t::~htif_isasim_t()
 {
+  if (this->checkpoint) {
+    free(this->checkpoint);
+  }
 }
 
 // This is called by sim as a way to transfer control to HTIF host module so that any pending
@@ -307,10 +310,24 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
 
 }
 
-void htif_isasim_t::start_checkpointing(std::ostream& checkpoint_file)
+void htif_isasim_t::start_checkpointing()
 {
   checkpointing_active = true;
-  this->checkpoint = &checkpoint_file;
+  this->checkpoint = new std::stringstream();
+}
+
+void htif_isasim_t::output_checkpointing(std::ostream& checkpoint_file)
+{
+  if(checkpointing_active){
+	  this->checkpoint->seekg(0);
+	  std::copy(
+	  	    std::istreambuf_iterator<char>(*this->checkpoint),
+	  	    std::istreambuf_iterator<char>(),
+	  	    std::ostreambuf_iterator<char>(checkpoint_file)
+	  );
+	  checkpoint_file << "END_HTIF_CHECKPOINT 0 0 0" << std::endl;
+  }
+
 }
 
 void htif_isasim_t::stop_checkpointing()
