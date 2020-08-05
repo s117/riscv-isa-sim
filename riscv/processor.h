@@ -89,6 +89,7 @@ public:
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
 #ifdef RISCV_ENABLE_SIMPOINT
+  bool simpoint_enabled;
   uint64_t num_bb_inst;
   bb_tracker_t* get_bbt() { return bbt; }
   void set_simpoint(bool enable, size_t interval);
@@ -108,7 +109,6 @@ private:
   bool run; // !reset
   bool debug;
   bool histogram_enabled;
-  bool simpoint_enabled;
   bool rv64;
   bool serialized;
 
