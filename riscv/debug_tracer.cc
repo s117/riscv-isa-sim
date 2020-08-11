@@ -33,6 +33,8 @@ debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_dismer(), m_re
 
 debug_tracer_t::~debug_tracer_t() {
   if (m_enabled) {
+    std::string trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".gz";
+    std::cout << std::endl << "Saving trace \"" << trace_file_name << "\"..."<< std::endl;
     issue_curr_record();
     m_tr_ostream.flush();
     m_tr_ostream.close();
@@ -213,7 +215,7 @@ void debug_tracer_t::issue_curr_record() {
         );
 
     for (auto &rd_idx : m_rec_insn.rd_rec)
-      if (rd_idx.valid)
+      if (rd_idx.valid && rd_idx.n != 0)
         ogzs_printf(
           m_tr_ostream, "\tRD/%s\t0x%08" PRIx64 "\n",
           xpr_name[rd_idx.n], rd_idx.val.xval
