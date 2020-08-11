@@ -21,6 +21,7 @@ set(
         bbtracker.h
         gzstream.h
         ckpt_desc_reader.h
+        debug_tracer.h
         ${riscv_gen_hdrs}
 )
 
@@ -41,6 +42,7 @@ set(
         bbtracker.cc
         gzstream.cc
         ckpt_desc_reader.cc
+        debug_tracer.cc
         ${riscv_gen_srcs}
 )
 
