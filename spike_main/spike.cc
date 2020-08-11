@@ -23,7 +23,7 @@ static void help()
   fprintf(stderr, "  -d                 Interactive debug mode\n");
   fprintf(stderr, "  -g                 Track histogram of PCs\n");
   fprintf(stderr, "  -s <Interval>      Dump basic block vector profile for Simpoint with specified interval\n");
-  fprintf(stderr, "  -t <trace_out>     Trace the simulation to file <trace_out>_proc_n.gz\n");
+  fprintf(stderr, "  -t                 Trace the simulation to file trace_proc_<coreid>.gz\n");
   fprintf(stderr, "  -h                 Print this help message\n");
   fprintf(stderr, "  --ic=<S>:<W>:<B>   Instantiate a cache model with S sets,\n");
   fprintf(stderr, "  --dc=<S>:<W>:<B>     W ways, and B-byte blocks (with S and\n");
