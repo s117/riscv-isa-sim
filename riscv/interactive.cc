@@ -86,7 +86,7 @@ void sim_t::interactive()
       if(funcs.count(cmd))
         (this->*funcs[cmd])(cmd, args);
     }
-    catch(trap_t t) {}
+    catch(trap_t& t) {}
   }
   ctrlc_pressed = false;
 }
@@ -276,7 +276,7 @@ void sim_t::interactive_until(const std::string& cmd, const std::vector<std::str
       if (ctrlc_pressed)
         break;
     }
-    catch (trap_t t) {}
+    catch (trap_t& t) {}
 
     set_procs_debug(false);
     step(1);

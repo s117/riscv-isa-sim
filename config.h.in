@@ -42,6 +42,9 @@
 /* Enable commit log generation */
 #undef RISCV_ENABLE_COMMITLOG
 
+/* Logging execution trace for debugging and analyzing */
+#undef RISCV_ENABLE_DBG_TRACE
+
 /* Define if floating-point instructions are supported */
 #undef RISCV_ENABLE_FPU
 

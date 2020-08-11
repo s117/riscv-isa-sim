@@ -669,6 +669,7 @@ enable_64bit
 enable_commitlog
 enable_histogram
 enable_simpoint
+enable_dbg_trace
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1306,6 +1307,7 @@ Optional Features:
   --enable-histogram      Enable PC histogram generation
   --enable-simpoint       Enable Basic Block Vector generation for simpoint
                           tool
+  --enable-dbg-trace      Logging execution trace for debugging and analyzing
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -3908,9 +3910,9 @@ fi
 # Default compiler flags
 #-------------------------------------------------------------------------
 
-CFLAGS="-Wall -Wno-unused -O2"
+CFLAGS="-Wall -Wno-unused -g -O0"
 
-CXXFLAGS="-Wall -Wno-unused -O2 -std=c++11"
+CXXFLAGS="-Wall -Wno-unused -g -O0 -std=c++11"
 
 
 #-------------------------------------------------------------------------
@@ -4197,6 +4199,19 @@ if test "x$enable_simpoint" = "xyes"; then :
 
 
 $as_echo "#define RISCV_ENABLE_SIMPOINT /**/" >>confdefs.h
+
+
+fi
+
+# Check whether --enable-dbg_trace was given.
+if test "${enable_dbg_trace+set}" = set; then :
+  enableval=$enable_dbg_trace;
+fi
+
+if test "x$enable_dbg_trace" = "xyes"; then :
+
+
+$as_echo "#define RISCV_ENABLE_DBG_TRACE /**/" >>confdefs.h
 
 
 fi

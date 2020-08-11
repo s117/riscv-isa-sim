@@ -8,6 +8,7 @@
 #include "sim.h"
 #include "htif.h"
 #include "disasm.h"
+#include "debug_tracer.h"
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
@@ -24,7 +25,7 @@
 extern bool logging_on;
 
 processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
-  : sim(_sim), mmu(_mmu), ext(NULL), disassembler(new disassembler_t),
+  : sim(_sim), mmu(_mmu), rawmmu(_mmu), ext(NULL), disassembler(new disassembler_t),
     id(_id), run(false), debug(false), serialized(false)
 {
   reset(true);
@@ -39,6 +40,10 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   num_bb_inst = 0;
   simpoint_enabled = false;
   bbt = new bb_tracker_t();
+#endif
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+  dbg_tracer = new debug_tracer_t(this);
 #endif
 }
 
@@ -56,6 +61,12 @@ processor_t::~processor_t()
 
 #ifdef RISCV_ENABLE_SIMPOINT
   delete bbt;
+#endif
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+  if (dbg_tracer->enabled())
+    delete mmu;
+  delete dbg_tracer;
 #endif
 
   delete disassembler;
@@ -122,6 +133,42 @@ void processor_t::set_simpoint(bool enable, size_t interval)
 bool processor_t::get_simpoint()
 {
   return simpoint_enabled;
+}
+#endif
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+void processor_t::enable_trace()
+{
+  if (!dbg_tracer->enabled()) {
+    mmu = new dbg_tracer_hook_mmu_t(this, mmu);
+    dbg_tracer->enable_trace();
+  }
+}
+
+reg_t processor_t::rd_xpr(size_t rn, operand_t operand)
+{
+  auto val = state.XPR[rn];
+  dbg_tracer->trace_after_xpr_access(rn, val, operand);
+  return val;
+}
+
+void processor_t::wr_xpr(size_t rn, reg_t val)
+{
+  state.XPR.write(rn, val);
+  dbg_tracer->trace_after_xpr_access(rn, val, RDST_OPERAND);
+}
+
+freg_t processor_t::rd_fpr(size_t rn, operand_t operand)
+{
+  auto val = state.FPR[rn];
+  dbg_tracer->trace_after_fpr_access(rn, val, operand);
+  return val;
+}
+
+void processor_t::wr_fpr(size_t rn, freg_t val)
+{
+  state.FPR.write(rn, val);
+  dbg_tracer->trace_after_fpr_access(rn, val, RDST_OPERAND);
 }
 #endif
 
@@ -192,6 +239,10 @@ inline void processor_t::update_histogram(size_t pc)
 static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 {
 
+#ifdef RISCV_ENABLE_DBG_TRACE
+  p->get_dbg_tracer()->trace_before_insn_execute(pc, fetch.insn);
+#endif
+
 #ifdef RISCV_ENABLE_SIMPOINT
   if (p->get_simpoint())
   {
@@ -200,13 +251,18 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
       bb_tracker_t* bbt = p->get_bbt();
       bbt->bb_tracker((uint64_t)pc,p->num_bb_inst);
       p->num_bb_inst = 0;
-    } 
+    }
   }
 #endif
 
   reg_t npc = fetch.func(p, fetch.insn, pc);
   commit_log(p->get_state(), pc, fetch.insn);
   p->update_histogram(pc);
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+  p->get_dbg_tracer()->trace_after_insn_execute(pc);
+#endif
+
 #ifdef RISCV_ENABLE_SIMPOINT
   if (p->get_simpoint())
   {
@@ -229,6 +285,7 @@ static size_t next_timer(state_t* state)
 {
   return state->compare - (uint32_t)state->count;
 }
+
 
 void processor_t::step(size_t n)
 {
@@ -280,7 +337,13 @@ void processor_t::step(size_t n)
   }
   catch(trap_t& t)
   {
+#ifdef RISCV_ENABLE_DBG_TRACE
+    auto epc = pc;
     pc = take_trap(t, pc);
+    dbg_tracer->trace_after_take_trap(t, epc, pc);
+#else
+    pc = take_trap(t, pc);
+#endif
   }
   catch(serialize_t& s) {}
 
@@ -505,7 +568,7 @@ reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc)
 insn_func_t processor_t::decode_insn(insn_t insn)
 {
   size_t mask = opcode_map.size()-1;
-  insn_desc_t* desc = opcode_map[insn.bits() & mask]; 
+  insn_desc_t* desc = opcode_map[insn.bits() & mask];
 
   while ((insn.bits() & desc->mask) != desc->match)
     desc++;

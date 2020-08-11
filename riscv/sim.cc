@@ -56,7 +56,7 @@ sim_t::~sim_t()
 {
   for (size_t i = 0; i < procs.size(); i++)
   {
-    mmu_t* pmmu = procs[i]->get_mmu();
+    mmu_t* pmmu = procs[i]->get_raw_mmu();
     delete procs[i];
     delete pmmu;
   }
@@ -190,6 +190,15 @@ void sim_t::set_simpoint(bool enable, size_t interval)
 }
 #endif
 
+#ifdef RISCV_ENABLE_DBG_TRACE
+void sim_t::enable_trace()
+{
+  for (size_t i = 0; i < procs.size(); i++) {
+    procs[i]->enable_trace();
+  }
+}
+#endif
+
 void sim_t::set_procs_debug(bool value)
 {
   for (size_t i=0; i< procs.size(); i++)
@@ -295,7 +304,7 @@ void sim_t::restore_proc_checkpoint(std::istream& proc_chkpt)
   state_t *state = procs[0]->get_state();
   uint64_t signature;
   proc_chkpt.read((char*)&signature,8);
-  assert(signature = 0xdeadbeefbaadbeef);
+  assert(signature == 0xdeadbeefbaadbeeful);
   proc_chkpt.read((char *)state,sizeof(state_t));
 }
 

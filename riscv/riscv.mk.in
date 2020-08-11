@@ -24,6 +24,7 @@ riscv_hdrs = \
 	bbtracker.h	\
 	gzstream.h	\
 	ckpt_desc_reader.h \
+	debug_tracer.h \
 
 riscv_precompiled_hdrs = \
 	insn_template.h \
@@ -43,6 +44,7 @@ riscv_srcs = \
 	bbtracker.cc	\
 	gzstream.cc	\
 	ckpt_desc_reader.cc \
+	debug_tracer.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs =

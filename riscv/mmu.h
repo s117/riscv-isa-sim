@@ -11,6 +11,22 @@
 #include "memtracer.h"
 #include <vector>
 
+// To hooks a processor's mmu operation, a new MMU subclass is created to insert
+// a layer of code between processor and MMU. That is, replacing the actual MMU
+// pointer held by processor with the new MMU subclass.
+//
+// However, doing so requires polymorphism (subclass's method can dynamically
+// override the method in parent class), which need the hooked class method
+// a virtual and non-inlined method. The definition below is for this
+// when needed (debug trace is enabled).
+#ifdef RISCV_ENABLE_DBG_TRACE
+#define __MMU_DIRECTIVE_ALWAYS_INLINE
+#define __MMU_VIRTUAL virtual
+#else
+#define __MMU_DIRECTIVE_ALWAYS_INLINE __attribute__((always_inline))
+#define __MMU_VIRTUAL
+#endif
+
 // virtual memory configuration
 typedef reg_t pte_t;
 const reg_t LEVELS = sizeof(pte_t) == 8 ? 3 : 2;
@@ -39,11 +55,11 @@ class mmu_t
 {
 public:
   mmu_t(char* _mem, size_t _memsz);
-  ~mmu_t();
+  virtual ~mmu_t();
 
   // template for functions that load an aligned value from memory
   #define load_func(type) \
-    type##_t load_##type(reg_t addr) __attribute__((always_inline)) { \
+    __MMU_VIRTUAL type##_t load_##type(reg_t addr) __MMU_DIRECTIVE_ALWAYS_INLINE { \
       void* paddr = translate(addr, sizeof(type##_t), false, false); \
       return *(type##_t*)paddr; \
     }
@@ -62,7 +78,7 @@ public:
 
   // template for functions that store an aligned value to memory
   #define store_func(type) \
-    void store_##type(reg_t addr, type##_t val) { \
+    __MMU_VIRTUAL void store_##type(reg_t addr, type##_t val) { \
       void* paddr = translate(addr, sizeof(type##_t), true, false); \
       *(type##_t*)paddr = val; \
       /*fprintf(stderr,"Storing addr 0x%" PRIxreg " paddr 0x%" PRIxreg "\n",addr,(reg_t)paddr);*/  \
@@ -83,7 +99,7 @@ public:
   }
 
   // load instruction from memory at aligned address.
-  icache_entry_t* access_icache(reg_t addr) __attribute__((always_inline))
+  __MMU_VIRTUAL icache_entry_t* access_icache(reg_t addr) __MMU_DIRECTIVE_ALWAYS_INLINE
   {
     reg_t idx = icache_index(addr);
     icache_entry_t* entry = &icache[idx];

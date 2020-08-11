@@ -16,6 +16,7 @@ class trap_t;
 class extension_t;
 class disassembler_t;
 class bb_tracker_t;
+class debug_tracer_t;
 
 struct insn_desc_t
 {
@@ -81,8 +82,10 @@ public:
   void set_interrupt(int which, bool on);
   reg_t get_pcr(int which);
   mmu_t* get_mmu() { return mmu; }
+  mmu_t* get_raw_mmu() { return rawmmu; }
   state_t* get_state() { return &state; }
   extension_t* get_extension() { return ext; }
+  uint32_t get_id() { return id; }
   void yield_load_reservation() { state.load_reservation = (reg_t)-1; }
   void update_histogram(size_t pc);
 
@@ -93,17 +96,34 @@ public:
   uint64_t num_bb_inst;
   bb_tracker_t* get_bbt() { return bbt; }
   void set_simpoint(bool enable, size_t interval);
+
   bool get_simpoint();
+#endif
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+  void enable_trace();
+  debug_tracer_t* get_dbg_tracer() { return dbg_tracer; };
+  reg_t rd_xpr(size_t rn, operand_t operand);
+  void wr_xpr(size_t rn, reg_t val);
+  freg_t rd_fpr(size_t rn, operand_t operand);
+  void wr_fpr(size_t rn, freg_t val);
 #endif
 
 private:
   sim_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
+  mmu_t* rawmmu; // mmu maybe replaced for debug tracing purpose, rawmmu is the original mmu received from constructor
   extension_t* ext;
   disassembler_t* disassembler;
+
 #ifdef RISCV_ENABLE_SIMPOINT
   bb_tracker_t* bbt;
 #endif
+
+#ifdef RISCV_ENABLE_SIMPOINT
+  debug_tracer_t* dbg_tracer;
+#endif
+
   state_t state;
   uint32_t id;
   bool run; // !reset

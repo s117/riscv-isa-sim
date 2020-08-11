@@ -14,6 +14,16 @@
 #include "common.h"
 #include <cinttypes>
 
+typedef enum {
+  RSRC1_OPERAND = 0,
+  RSRC2_OPERAND,
+  RSRC3_OPERAND,
+  RDST_OPERAND,
+  MSRC_OPERAND,
+  MDST_OPERAND,
+  RSRC_A_OPERAND
+} operand_t;
+
 typedef int64_t sreg_t;
 typedef uint64_t reg_t;
 typedef uint64_t freg_t;
@@ -140,7 +150,34 @@ private:
         STATE.FPR.write(insn.rd(), wdata); \
       })
 #endif
- 
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+//#undef MMU
+//#define MMU (p->get_dbg_tracer()->m_dummy_mmu)
+
+#undef RS1
+#define RS1 p->rd_xpr(insn.rs1(), RSRC1_OPERAND)
+
+#undef RS2
+#define RS2 p->rd_xpr(insn.rs2(), RSRC2_OPERAND)
+
+#undef WRITE_RD
+#define WRITE_RD(value) p->wr_xpr(insn.rd(), value)
+
+#undef FRS1
+#define FRS1 p->rd_fpr(insn.rs1(), RSRC1_OPERAND)
+
+#undef FRS2
+#define FRS2 p->rd_fpr(insn.rs2(), RSRC2_OPERAND)
+
+#undef FRS3
+#define FRS3 p->rd_fpr(insn.rs3(), RSRC3_OPERAND)
+
+#undef WRITE_FRD
+#define WRITE_FRD(value) p->wr_fpr(insn.rd(), value)
+
+#endif
+
 #define SHAMT (insn.i_imm() & 0x3F)
 #define BRANCH_TARGET (pc + insn.sb_imm())
 #define JUMP_TARGET (pc + insn.uj_imm())
