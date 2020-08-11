@@ -8,3 +8,5 @@ config.log
 .cproject
 .project
 .settings
+.idea
+cmake-build-*
