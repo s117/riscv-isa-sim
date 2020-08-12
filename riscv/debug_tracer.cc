@@ -143,7 +143,7 @@ void debug_tracer_t::trace_after_xpr_access(size_t rn, reg_t val, operand_t oper
       m_rec_insn.rs_rec[operand].n = rn;
       m_rec_insn.rs_rec[operand].val.xval = val;
       m_rec_insn.rs_rec[operand].valid = true;
-      m_rec_insn.rd_rec[operand].fpr = false;
+      m_rec_insn.rs_rec[operand].fpr = false;
       break;
     case RDST_OPERAND:
       assert(!m_rec_insn.rd_rec[operand - RDST_OPERAND].valid);
@@ -172,10 +172,10 @@ void debug_tracer_t::trace_after_fpr_access(size_t rn, freg_t val, operand_t ope
       m_rec_insn.rs_rec[operand].n = rn;
       m_rec_insn.rs_rec[operand].val.fval = val;
       m_rec_insn.rs_rec[operand].valid = true;
-      m_rec_insn.rd_rec[operand].fpr = true;
+      m_rec_insn.rs_rec[operand].fpr = true;
       break;
     case RDST_OPERAND:
-      assert(!m_rec_insn.rs_rec[operand - RDST_OPERAND].valid);
+      assert(!m_rec_insn.rd_rec[operand - RDST_OPERAND].valid);
       m_rec_insn.rd_rec[operand - RDST_OPERAND].n = rn;
       m_rec_insn.rd_rec[operand - RDST_OPERAND].val.fval = val;
       m_rec_insn.rd_rec[operand - RDST_OPERAND].valid = true;
