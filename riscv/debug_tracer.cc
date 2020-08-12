@@ -9,10 +9,25 @@
 #include <cstring>
 #include <cassert>
 #include <cinttypes>
+#include <csignal>
 #include "debug_tracer.h"
 #include "mmu.h"
 
 #define PRIcycle PRIu64
+
+#ifdef __DBG_TRACE_DEBUG_OUTPUT
+#define ogzs_printf(ogzs, format, ...) \
+  do { \
+    char buf[1024]; \
+    if (snprintf(buf, sizeof(buf), format, __VA_ARGS__) >= int64_t(sizeof(buf))) { \
+      fprintf(stderr, "trace output error: formating buffer overflow\n"); \
+      exit(-1); \
+    } else { \
+      ogzs << buf; \
+      ogzs.flush(); \
+    } \
+  } while(0)
+#else
 #define ogzs_printf(ogzs, format, ...) \
   do { \
     char buf[1024]; \
@@ -23,18 +38,24 @@
       ogzs << buf; \
     } \
   } while(0)
+#endif
 
-debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_dismer(), m_rec_insn() {
+debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_disassembler(), m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
   m_tgt_proc = target_processor;
   m_enabled = false;
   m_insn_seq = 0;
+
+#ifdef __DBG_TRACE_DEBUG_OUTPUT
+  m_trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".txt";
+#else
+  m_trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".gz";
+#endif
 }
 
 debug_tracer_t::~debug_tracer_t() {
   if (m_enabled) {
-    std::string trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".gz";
-    std::cout << std::endl << "Saving trace \"" << trace_file_name << "\"..."<< std::endl;
+    std::cout << std::endl << "Saving trace \"" << m_trace_file_name << "\"..." << std::endl;
     issue_curr_record();
     m_tr_ostream.flush();
     m_tr_ostream.close();
@@ -42,10 +63,9 @@ debug_tracer_t::~debug_tracer_t() {
 }
 
 void debug_tracer_t::enable_trace() {
-  std::string trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".gz";
-  m_tr_ostream.open(trace_file_name.c_str());
+  m_tr_ostream.open(m_trace_file_name.c_str());
   if (!m_tr_ostream.good()) {
-    std::cerr << "Trace output error: fail to open trace output file" << trace_file_name << std::endl;
+    std::cerr << "Trace output error: fail to open trace output file" << m_trace_file_name << std::endl;
     exit(1);
   }
   m_enabled = true;
@@ -202,7 +222,7 @@ void debug_tracer_t::issue_curr_record() {
 
     ogzs_printf(m_tr_ostream, "C/%" PRIcycle " S/%" PRIu64 " PC/0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
                 m_rec_insn.seqno, m_rec_insn.seqno, insn_pc, insn.bits() & 0xffffffff,
-                m_dismer.disassemble(insn).c_str());
+                m_disassembler.disassemble(insn).c_str());
     if (!m_rec_insn.good) {
       ogzs_printf(m_tr_ostream, "%s", "\tINV_FETCH\t0x00000001\n");
     }

@@ -4,6 +4,7 @@
 #include "config.h"
 
 #ifdef RISCV_ENABLE_DBG_TRACE
+#define __DBG_TRACE_DEBUG_OUTPUT
 
 #include <stddef.h>
 #include <string>
@@ -92,15 +93,20 @@ private:
 
   uint64_t next_seqno();
 
-  disassembler_t m_dismer;
-  processor_t *m_tgt_proc;
+  uint64_t m_insn_seq;
 
   bool m_enabled;
-//  std::ofstream m_tr_ostream;
-  ogzstream m_tr_ostream;
+  processor_t *m_tgt_proc;
 
+  std::string m_trace_file_name;
+#ifdef __DBG_TRACE_DEBUG_OUTPUT
+  std::ofstream m_tr_ostream;
+#else
+  ogzstream m_tr_ostream;
+#endif
+
+  disassembler_t m_disassembler;
   insn_record_t m_rec_insn;
-  uint64_t m_insn_seq;
 };
 
 class dbg_tracer_hook_mmu_t : public mmu_t {
