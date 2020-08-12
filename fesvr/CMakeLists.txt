@@ -9,12 +9,13 @@ set(FESVR_INCLUDES ${FESVR_INSTALL_PREFIX}/include)
 ExternalProject_Add(
         riscv-fesvr
         SOURCE_DIR ${FESVR_DIR}
-        BINARY_DIR ${FESVR_BUILD_DIR}
-        CONFIGURE_COMMAND ${FESVR_DIR}/configure --prefix=${FESVR_INSTALL_PREFIX}
-        BUILD_COMMAND make
-        INSTALL_COMMAND make install
+        INSTALL_COMMAND ""
+        CMAKE_ARGS
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DAC_CONFIGURE_PREFIX=${AC_CONFIGURE_PREFIX}
 )
 
-add_library(fesvr SHARED IMPORTED GLOBAL)
-set_target_properties(fesvr PROPERTIES IMPORTED_LOCATION ${FESVR_SHARED_LIB})
-set_target_properties(fesvr PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${FESVR_INCLUDES})
+ExternalProject_Get_property(riscv-fesvr BINARY_DIR)
+add_library(fesvr STATIC IMPORTED GLOBAL)
+set_target_properties(fesvr PROPERTIES IMPORTED_LOCATION ${BINARY_DIR}/libfesvr-static.a)
+set_target_properties(fesvr PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${FESVR_DIR})
