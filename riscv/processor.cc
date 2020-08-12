@@ -137,11 +137,11 @@ bool processor_t::get_simpoint()
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-void processor_t::enable_trace()
+void processor_t::enable_trace(size_t n)
 {
   if (!dbg_tracer->enabled()) {
     mmu = new dbg_tracer_hook_mmu_t(this, mmu);
-    dbg_tracer->enable_trace();
+    dbg_tracer->enable_trace(n);
   }
 }
 

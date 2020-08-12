@@ -43,7 +43,7 @@ public:
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-  void enable_trace();
+  void enable_trace(size_t n);
 #endif
 
   // deliver an IPI to a specific processor

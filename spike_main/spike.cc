@@ -18,12 +18,14 @@ static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
   fprintf(stderr, "Host Options:\n");
-  fprintf(stderr, "  -p <n>             Simulate <n> processors\n");
-  fprintf(stderr, "  -m <n>             Provide <n> MB of target memory\n");
+  fprintf(stderr, "  -p<n>              Simulate <n> processors\n");
+  fprintf(stderr, "  -m<n>              Provide <n> MB of target memory\n");
   fprintf(stderr, "  -d                 Interactive debug mode\n");
   fprintf(stderr, "  -g                 Track histogram of PCs\n");
   fprintf(stderr, "  -s <Interval>      Dump basic block vector profile for Simpoint with specified interval\n");
-  fprintf(stderr, "  -t                 Trace the simulation to file trace_proc_<coreid>.gz\n");
+  fprintf(stderr, "  -t<n>              Trace the simulation to file trace_proc_[coreid].gz\n");
+  fprintf(stderr, "                       If <n> is 0 the entire trace will be kept, otherwise only keep\n");
+  fprintf(stderr, "                       the trace of last <n> instruction before simulation stop.\n");
   fprintf(stderr, "  -h                 Print this help message\n");
   fprintf(stderr, "  --ic=<S>:<W>:<B>   Instantiate a cache model with S sets,\n");
   fprintf(stderr, "  --dc=<S>:<W>:<B>     W ways, and B-byte blocks (with S and\n");
@@ -49,6 +51,7 @@ int main(int argc, char** argv)
   std::function<extension_t*()> extension;
 
   bool trace = false;
+  size_t trace_last_n = 0;
 
   uint64_t stop_amt           = 0xffffffffffffffff;
   std::string checkpoint_file = "";
@@ -65,7 +68,7 @@ int main(int argc, char** argv)
   parser.option('e', 0, 1, [&](const char* s){stop_amt = atoll(s);});
   parser.option('c', 0, 1, [&](const char* s){checkpoint = true; checkpoint_desc_file = s;});
   parser.option('f', 0, 1, [&](const char* s){checkpoint_file = s;});
-  parser.option('t', 0, 0, [&](const char* s){trace = true;});
+  parser.option('t', 0, 1, [&](const char* s){trace = true; trace_last_n= atoll(s);});
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
   parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
@@ -107,7 +110,7 @@ int main(int argc, char** argv)
 
 #ifdef RISCV_ENABLE_DBG_TRACE
   if (trace){
-    s.enable_trace();
+    s.enable_trace(trace_last_n);
   }
 #else
   if(trace){
