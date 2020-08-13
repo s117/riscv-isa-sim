@@ -78,7 +78,8 @@ void debug_tracer_t::trace_after_insn_execute(reg_t pc) {
 }
 
 void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
-  insn_t nop(0);
+  if (!m_enabled)
+    return;
   if (m_rec_insn.valid) {
     // the trap is caused by an instruction (sync exception)
     assert(m_rec_insn.pc == epc);
@@ -87,10 +88,11 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
     drain_curr_record();
   } else {
     // the trap is caused by an external interrupt signal (async interrupt)
+    insn_t null_insi(0);
     clear_curr_record();
     // make an artificial NULL instruction
     m_rec_insn.pc = 0;
-    m_rec_insn.insn = nop;
+    m_rec_insn.insn = null_insi;
     m_rec_insn.good = false;
     m_rec_insn.valid = true;
     m_rec_insn.seqno = next_seqno();
