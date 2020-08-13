@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cinttypes>
 #include <csignal>
+#include <cinttypes>
 #include "debug_tracer.h"
 #include "mmu.h"
 
@@ -202,6 +203,9 @@ void debug_tracer_t::clear_curr_record() {
 }
 
 uint64_t debug_tracer_t::next_seqno() {
+  if ((m_insn_seq & ((1ul << 24ul) - 1ul)) == 0ul) {
+    fprintf(stderr, "Traced 0x%" PRIX64 " instructions.\n", m_insn_seq);
+  }
   return ++m_insn_seq;
 }
 
@@ -246,6 +250,7 @@ trace_output_direct_t::~trace_output_direct_t() {
   } while(0)
 #endif
 #define PRIcycle PRIu64
+
 void trace_output_direct_t::output_insn_record(const insn_record_t &insn_rec) {
   if (insn_rec.valid) {
     auto insn = insn_rec.insn;
