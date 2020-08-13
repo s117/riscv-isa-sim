@@ -305,8 +305,6 @@ void trace_output_direct_t::output_insn_record(const insn_record_t &insn_rec) {
   }
 }
 
-#endif
-
 trace_output_last_n_t::trace_output_last_n_t(const std::string &filename_out, size_t n) :
   m_direct_output(filename_out) {
   m_sz_buf = n;
@@ -358,3 +356,5 @@ insn_record_t *trace_output_last_n_t::insn_rec_circ_buf_pop() {
 
   return ret_ptr;
 }
+
+#endif /* RISCV_ENABLE_DBG_TRACE */
