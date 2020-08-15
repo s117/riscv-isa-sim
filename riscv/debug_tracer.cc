@@ -313,6 +313,8 @@ void trace_output_direct_t::output_insn_record(const insn_record_t &insn_rec) {
 trace_output_last_n_t::trace_output_last_n_t(const std::string &filename_out, size_t n) :
   m_direct_output(filename_out) {
   m_sz_buf = n;
+  fprintf(stderr, "*** Reserved %" PRId64 " MB memory for keeping the history of %" PRId64 " instructions ***\n",
+          (sizeof(insn_record_t) * n) >> 20ul, n);
   m_insn_rec_circ_buf = new insn_record_t[n];
   m_tail = 0;
   m_head = 0;
