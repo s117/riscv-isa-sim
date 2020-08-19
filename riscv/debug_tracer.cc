@@ -114,7 +114,7 @@ void debug_tracer_t::trace_after_xpr_access(size_t rn, reg_t val, operand_t oper
     case RSRC1_OPERAND:
     case RSRC2_OPERAND:
     case RSRC3_OPERAND:
-      assert(!m_rec_insn.rs_rec[operand].valid);
+      assert(!m_rec_insn.rs_rec[operand].valid || m_rec_insn.rs_rec[operand].val.xval == val);
       m_rec_insn.rs_rec[operand].n = rn;
       m_rec_insn.rs_rec[operand].val.xval = val;
       m_rec_insn.rs_rec[operand].valid = true;
