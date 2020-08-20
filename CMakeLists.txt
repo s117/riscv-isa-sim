@@ -11,9 +11,6 @@ set(SCRIPT_DIR ${PROJECT_SOURCE_DIR}/scripts)
 #     configure --prefix=${AC_CONFIGURE_PREFIX} ...
 set(AC_CONFIGURE_PREFIX ${CMAKE_BINARY_DIR}/install)
 
-# if riscv-fesvr project is not here, update the line below
-set(FESVR_DIR ${PROJECT_SOURCE_DIR}/../riscv-fesvr)
-
 set(
         ISA_SIM_AC_CONFIGURE_ARGS
         --prefix=${AC_CONFIGURE_PREFIX}
@@ -22,13 +19,7 @@ set(
         --enable-dbg-trace
 )
 
-if (NOT IS_DIRECTORY ${FESVR_DIR})
-    message(FATAL_ERROR "The source tree for riscv-fesvr doesn't exist: '${FESVR_DIR}'")
-else ()
-    message(STATUS "Using riscv-fesvr from '${FESVR_DIR}'")
-endif ()
-
-add_subdirectory(fesvr)
+add_subdirectory(riscv-fesvr)
 
 add_subdirectory(config)
 add_subdirectory(softfloat)

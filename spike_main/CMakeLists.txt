@@ -1,7 +1,7 @@
 set(
         spike_main_subproject_deps
         ac_config
-        fesvr
+        fesvr-static
         softfloat
         riscv
 )
