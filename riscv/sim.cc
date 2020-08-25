@@ -56,7 +56,7 @@ sim_t::~sim_t()
 {
   for (size_t i = 0; i < procs.size(); i++)
   {
-    mmu_t* pmmu = procs[i]->get_raw_mmu();
+    mmu_t* pmmu = procs[i]->get_mmu();
     delete procs[i];
     delete pmmu;
   }
@@ -136,7 +136,7 @@ bool sim_t::run(size_t n)
     total_retired += steps;
 		current_step += steps;
     // Either the core has retired INTERLEAVE number of instructions
-    // or it has been idle for a INTERLEAVE steps, do a HTIF tick and move to 
+    // or it has been idle for a INTERLEAVE steps, do a HTIF tick and move to
     // the next core.
 		if (current_step == INTERLEAVE)
 		{
@@ -307,4 +307,3 @@ void sim_t::restore_proc_checkpoint(std::istream& proc_chkpt)
   assert(signature == 0xdeadbeefbaadbeeful);
   proc_chkpt.read((char *)state,sizeof(state_t));
 }
-

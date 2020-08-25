@@ -25,9 +25,13 @@
 extern bool logging_on;
 
 processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
-  : sim(_sim), mmu(_mmu), rawmmu(_mmu), ext(NULL), disassembler(new disassembler_t),
+  : sim(_sim), mmu(_mmu), ext(NULL), disassembler(new disassembler_t),
     id(_id), run(false), debug(false), serialized(false)
 {
+#ifdef RISCV_ENABLE_DBG_TRACE
+  dbg_tracer = new debug_tracer_t(this);
+#endif
+
   reset(true);
   mmu->set_processor(this);
 
@@ -40,10 +44,6 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   num_bb_inst = 0;
   simpoint_enabled = false;
   bbt = new bb_tracker_t();
-#endif
-
-#ifdef RISCV_ENABLE_DBG_TRACE
-  dbg_tracer = new debug_tracer_t(this);
 #endif
 }
 
@@ -64,8 +64,6 @@ processor_t::~processor_t()
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-  if (dbg_tracer->enabled())
-    delete mmu;
   delete dbg_tracer;
 #endif
 
@@ -140,7 +138,6 @@ bool processor_t::get_simpoint()
 void processor_t::enable_trace(size_t n)
 {
   if (!dbg_tracer->enabled()) {
-    mmu = new dbg_tracer_hook_mmu_t(this, mmu);
     dbg_tracer->enable_trace(n);
   }
 }

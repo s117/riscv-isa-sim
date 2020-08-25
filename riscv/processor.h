@@ -82,7 +82,6 @@ public:
   void set_interrupt(int which, bool on);
   reg_t get_pcr(int which);
   mmu_t* get_mmu() { return mmu; }
-  mmu_t* get_raw_mmu() { return rawmmu; }
   state_t* get_state() { return &state; }
   extension_t* get_extension() { return ext; }
   uint32_t get_id() { return id; }
@@ -112,7 +111,6 @@ public:
 private:
   sim_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
-  mmu_t* rawmmu; // mmu maybe replaced for debug tracing purpose, rawmmu is the original mmu received from constructor
   extension_t* ext;
   disassembler_t* disassembler;
 

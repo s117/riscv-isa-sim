@@ -12,13 +12,7 @@
 #include "trap.h"
 #include "gzstream.h"
 #include "disasm.h"
-#include "mmu.h"
-
-class processor_t;
-
-struct state_t;
-
-class dbg_tracer_hook_mmu_t;
+#include "processor.h"
 
 /************* Trace Record Internal Representation *************/
 typedef struct {
@@ -154,72 +148,6 @@ private:
   processor_t *m_tgt_proc;
   insn_record_t m_rec_insn;
   trace_output_t *m_trace_output;
-};
-
-/************* Wrapped MMU for hooking memory OP *************/
-class dbg_tracer_hook_mmu_t : public mmu_t {
-public:
-  dbg_tracer_hook_mmu_t(processor_t *upstream_processor, mmu_t *downstream_mmu) : mmu_t(nullptr, 0) {
-    m_downstream_mmu = downstream_mmu;
-    m_upstream_processor = upstream_processor;
-    m_tracer_to_report = m_upstream_processor->get_dbg_tracer();
-  };
-
-  ~dbg_tracer_hook_mmu_t() override = default;
-
-  // template for functions that load an aligned value from memory
-#define dbg_tracer_hook_load_func(type) \
-    type##_t load_##type(reg_t addr) override  { \
-      m_tracer_to_report->trace_before_dc_translate(addr, false); \
-      auto load_val = m_downstream_mmu->load_##type(addr); \
-      m_tracer_to_report->trace_after_dc_access(addr, load_val, sizeof(load_val), false); \
-      return load_val; \
-    }
-  // template for functions that store an aligned value to memory
-#define dbg_tracer_hook_store_func(type) \
-    void store_##type(reg_t addr, type##_t val) override { \
-      m_tracer_to_report->trace_before_dc_translate(addr, true); \
-      m_downstream_mmu->store_##type(addr, val); \
-      m_tracer_to_report->trace_after_dc_access(addr, val, sizeof(val), true); \
-    }
-
-  // load value from memory at aligned address; zero extend to register width
-  dbg_tracer_hook_load_func(uint8)
-
-  dbg_tracer_hook_load_func(uint16)
-
-  dbg_tracer_hook_load_func(uint32)
-
-  dbg_tracer_hook_load_func(uint64)
-
-  // load value from memory at aligned address; sign extend to register width
-  dbg_tracer_hook_load_func(int8)
-
-  dbg_tracer_hook_load_func(int16)
-
-  dbg_tracer_hook_load_func(int32)
-
-  dbg_tracer_hook_load_func(int64)
-
-  // store value to memory at aligned address
-  dbg_tracer_hook_store_func(uint8)
-
-  dbg_tracer_hook_store_func(uint16)
-
-  dbg_tracer_hook_store_func(uint32)
-
-  dbg_tracer_hook_store_func(uint64)
-
-  icache_entry_t *access_icache(reg_t addr) override {
-    m_tracer_to_report->trace_before_insn_ic_fetch(addr);
-    auto ic_entry = m_downstream_mmu->access_icache(addr);
-    return ic_entry;
-  }
-
-protected:
-  mmu_t *m_downstream_mmu;
-  processor_t *m_upstream_processor;
-  debug_tracer_t *m_tracer_to_report;
 };
 
 #endif /* RISCV_ENABLE_DBG_TRACE */
