@@ -3910,9 +3910,9 @@ fi
 # Default compiler flags
 #-------------------------------------------------------------------------
 
-CFLAGS="-Wall -Wno-unused -g -O0"
+CFLAGS="-Wall -Wno-unused -g -O3"
 
-CXXFLAGS="-Wall -Wno-unused -g -O0 -std=c++11"
+CXXFLAGS="-Wall -Wno-unused -g -O3 -std=c++11"
 
 
 #-------------------------------------------------------------------------
