@@ -46,6 +46,7 @@ typedef struct {
 
   reg_t pc;
   insn_t insn;
+  uint64_t cycle;
   uint64_t seqno;
 
   reg_record_t rs_rec[MAX_RSRC];
@@ -97,7 +98,11 @@ private:
 
   insn_record_t *insn_rec_circ_buf_pop();
 
-  inline size_t next_idx(size_t i) { return (i + 1) % m_sz_buf; };
+  inline size_t next_idx(size_t i) {
+    // return (i + 1) % m_sz_buf;
+    auto nidx = i + 1;
+    return (nidx == m_sz_buf) ? 0 : nidx;
+  };
 
   insn_record_t *m_insn_rec_circ_buf;
   size_t m_sz_buf;
@@ -121,8 +126,6 @@ public:
 
   void trace_before_insn_execute(reg_t pc, insn_t insn);
 
-  void trace_after_insn_execute(reg_t pc);
-
   void trace_after_xpr_access(size_t rn, reg_t val, operand_t operand);
 
   void trace_after_fpr_access(size_t rn, freg_t val, operand_t operand);
@@ -130,6 +133,8 @@ public:
   void trace_before_dc_translate(reg_t vaddr, bool write);
 
   void trace_after_dc_access(reg_t vaddr, freg_t val, size_t size, bool write);
+
+  void trace_after_insn_execute(reg_t pc);
 
   void trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc);
 
@@ -140,7 +145,7 @@ private:
 
   void clear_curr_record();
 
-  uint64_t next_seqno();
+  void seqno_incr();
 
   uint64_t m_insn_seq;
 

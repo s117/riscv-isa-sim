@@ -19,7 +19,7 @@ debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
   m_tgt_proc = target_processor;
   m_enabled = false;
-  m_insn_seq = 0;
+  m_insn_seq = 1;
   m_trace_output = nullptr;
 }
 
@@ -48,7 +48,8 @@ void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
     return;
 
   m_rec_insn.pc = pc;
-  m_rec_insn.seqno = next_seqno();
+  m_rec_insn.cycle = m_insn_seq; // Assume one instruction per cycle in ISA simulator,
+  m_rec_insn.seqno = m_insn_seq;
   m_rec_insn.valid = true;
 }
 
@@ -91,13 +92,14 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
     // the trap is caused by an external interrupt signal (async interrupt)
     insn_t null_insi(0);
     clear_curr_record();
-    // make an artificial NULL instruction
+    // to log this event, an artificial NULL instruction is inserted,
+    // seqno=0 is to distinguish it to the real, core fetched instruction
     m_rec_insn.pc = 0;
     m_rec_insn.insn = null_insi;
     m_rec_insn.good = false;
     m_rec_insn.valid = true;
-    m_rec_insn.seqno = next_seqno();
-
+    m_rec_insn.cycle = m_insn_seq;
+    m_rec_insn.seqno = 0;
     m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
     m_rec_insn.exception = true;
     drain_curr_record();
@@ -193,6 +195,7 @@ void debug_tracer_t::trace_after_dc_access(reg_t vaddr, freg_t val, size_t size,
 void debug_tracer_t::drain_curr_record() {
   if (m_rec_insn.valid) {
     m_trace_output->issue_insn(m_rec_insn);
+    seqno_incr();
   }
   clear_curr_record();
 }
@@ -202,11 +205,11 @@ void debug_tracer_t::clear_curr_record() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
 }
 
-uint64_t debug_tracer_t::next_seqno() {
-  if ((m_insn_seq & ((1ul << 24ul) - 1ul)) == 0ul) {
+void debug_tracer_t::seqno_incr() {
+  if (unlikely(m_insn_seq & ((1ul << 24ul) - 1ul)) == 0ul) {
     fprintf(stderr, "Traced 0x%" PRIX64 " instructions.\n", m_insn_seq);
   }
-  return ++m_insn_seq;
+  ++m_insn_seq;
 }
 
 /************* Trace Output *************/
@@ -257,7 +260,7 @@ void trace_output_direct_t::output_insn_record(const insn_record_t &insn_rec) {
     auto insn_pc = insn_rec.pc;
 
     ogzs_printf(m_tr_ostream, "C/%" PRIcycle " S/%" PRIu64 " PC/0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
-                insn_rec.seqno, insn_rec.seqno, insn_pc, insn.bits() & 0xffffffff,
+                insn_rec.cycle, insn_rec.seqno, insn_pc, insn.bits() & 0xffffffff,
                 m_disassembler.disassemble(insn).c_str());
     if (!insn_rec.good) {
       ogzs_printf(m_tr_ostream, "%s", "\tINV_FETCH\t0x00000001\n");
