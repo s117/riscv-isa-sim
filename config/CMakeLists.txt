@@ -21,7 +21,7 @@ set(
         ../riscv/riscv.mk.in
         ../hwacha/hwacha.ac
         ../hwacha/hwacha.mk.in
-        ../dummy_rocc/dummy_rocc.cc
+        ../dummy_rocc/dummy_rocc.ac
         ../dummy_rocc/dummy_rocc.mk.in
         ../softfloat/softfloat.ac
         ../softfloat/softfloat.mk.in
