@@ -322,7 +322,7 @@ void processor_t::step(size_t n)
         } \
         pc = execute_insn(this, pc, fetch); \
         ifprintf(logging_on,stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
-        instret++; \
+        if (unlikely(instret == n)) break; \
         if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
         if (unlikely(ic_entry->tag != pc)) break; \
       }
