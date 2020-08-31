@@ -119,7 +119,7 @@ int main(int argc, char** argv)
   }
 #endif
 
-  int htif_code;
+  int htif_code = 0;
 
   if(checkpoint && (checkpoint_file == ""))
   {

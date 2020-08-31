@@ -125,15 +125,16 @@ bool sim_t::run(size_t n)
   bool htif_return = true;
   size_t total_retired = 0;
   size_t steps = 0;
+  size_t instret = 0;
   while(total_retired < n && htif_return)
 	{
 		steps = std::min(n - total_retired, INTERLEAVE - current_step);
 
     // This function continues until it has retired "steps" instructions
-    // or it encounters a cycle with 0 retired instructions.
-  	procs[current_proc]->step(steps);
+    // or it encounters a trap.
+    instret = procs[current_proc]->step(steps);
 
-    total_retired += steps;
+    total_retired += instret;
 		current_step += steps;
     // Either the core has retired INTERLEAVE number of instructions
     // or it has been idle for a INTERLEAVE steps, do a HTIF tick and move to

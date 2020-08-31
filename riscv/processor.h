@@ -74,7 +74,7 @@ public:
   void set_debug(bool value);
   void set_histogram(bool value);
   void reset(bool value);
-  void step(size_t n); // run for n cycles
+  size_t step(size_t n); // run for n cycles
   void deliver_ipi(); // register an interprocessor interrupt
   bool running() { return run; }
   void set_pcr(int which, reg_t val);

@@ -284,14 +284,14 @@ static size_t next_timer(state_t* state)
 }
 
 
-void processor_t::step(size_t n)
+size_t processor_t::step(size_t n)
 {
   size_t instret = 0;
   reg_t pc = state.pc;
   mmu_t* _mmu = mmu;
 
   if (unlikely(!run || !n))
-    return;
+    return 0;
   n = std::min(n, next_timer(&state) | 1U);
 
   try
@@ -311,16 +311,26 @@ void processor_t::step(size_t n)
     }
     else while (instret < n)
     {
+      // Why "instret++" then "instret--" here?
+      //
+      // "instret++" because I need to make sure if the instruction failed
+      // to fetch, it still increment the instret CSR
+      //
+      // "instret--" because later on instret will be incremented again by the
+      // code in icache fast path "ICACHE_ACCESS()"
+      instret++;
       size_t idx = _mmu->icache_index(pc);
       auto ic_entry = _mmu->access_icache(pc);
+      instret--;
 
       #define ICACHE_ACCESS(idx) { \
         insn_fetch_t fetch = ic_entry->data; \
-        ic_entry++; \
         if(logging_on) { \
           disasm(fetch.insn,pc); \
         } \
+        instret++; \
         pc = execute_insn(this, pc, fetch); \
+        ic_entry++; \
         ifprintf(logging_on,stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
         if (unlikely(instret == n)) break; \
         if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
@@ -342,10 +352,13 @@ void processor_t::step(size_t n)
     pc = take_trap(t, pc);
 #endif
   }
-  catch(serialize_t& s) {}
+  catch(serialize_t& s) {
+    instret--;
+  }
 
   state.pc = pc;
   update_timer(&state, instret);
+  return instret;
 }
 
 reg_t processor_t::take_trap(trap_t& t, reg_t epc)
