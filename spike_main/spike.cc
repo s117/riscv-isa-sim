@@ -14,6 +14,8 @@
 #include <string>
 #include <memory>
 
+#define NO_STOP UINT64_MAX
+
 static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
@@ -23,7 +25,8 @@ static void help()
   fprintf(stderr, "  -d                 Interactive debug mode\n");
   fprintf(stderr, "  -g                 Track histogram of PCs\n");
   fprintf(stderr, "  -s <Interval>      Dump basic block vector profile for Simpoint with specified interval\n");
-  fprintf(stderr, "  -t<n>              Trace the simulation to file trace_proc_[coreid].gz\n");
+  fprintf(stderr, "  -t<n> / -t<s>,<n>    Trace the simulation to file trace_proc_[coreid].gz\n");
+  fprintf(stderr, "                       If <s> is given, will skip <s> instructions prior to tracing\n");
   fprintf(stderr, "                       If <n> is 0 the entire trace will be kept, otherwise only keep\n");
   fprintf(stderr, "                       the trace of last <n> instruction before simulation stop.\n");
   fprintf(stderr, "  -h                 Print this help message\n");
@@ -33,6 +36,20 @@ static void help()
   fprintf(stderr, "  --extension=<name> Specify RoCC Extension\n");
   fprintf(stderr, "  --extlib=<name>    Shared library to load\n");
   exit(1);
+}
+
+long long str2ll(const char* s) {
+  char *end;
+  if (s[0] == '\0'){
+    throw std::runtime_error(std::string("cannot parse empty str to number"));
+  }
+
+  long long val = std::strtoll(s, &end, 10);
+
+  if (*end != '\0') {
+    throw std::runtime_error("failed to parse "+ std::string(s) + " to number");
+  }
+  return val;
 }
 
 int main(int argc, char** argv)
@@ -51,9 +68,10 @@ int main(int argc, char** argv)
   std::function<extension_t*()> extension;
 
   bool trace = false;
+  size_t trace_skip_amt = 0;
   size_t trace_last_n = 0;
 
-  uint64_t stop_amt           = 0xffffffffffffffff;
+  uint64_t stop_amt           = NO_STOP;
   std::string checkpoint_file = "";
   std::string checkpoint_desc_file = "";
 
@@ -68,7 +86,20 @@ int main(int argc, char** argv)
   parser.option('e', 0, 1, [&](const char* s){stop_amt = atoll(s);});
   parser.option('c', 0, 1, [&](const char* s){checkpoint = true; checkpoint_desc_file = s;});
   parser.option('f', 0, 1, [&](const char* s){checkpoint_file = s;});
-  parser.option('t', 0, 1, [&](const char* s){trace = true; trace_last_n= atoll(s);});
+  parser.option('t', 0, 1, [&](const char* s){
+    trace = true;
+    std::string param(s);
+    auto delimiter_pos = param.find(',');
+    if (delimiter_pos == std::string::npos) {
+      trace_skip_amt = 0;
+      trace_last_n = str2ll(param.c_str());
+    } else{
+      std::string p1 = param.substr(0, delimiter_pos);
+      std::string p2 = param.substr(delimiter_pos + 1, param.size());
+      trace_skip_amt = str2ll(p1.c_str());
+      trace_last_n = str2ll(p2.c_str());
+    }
+  });
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
   parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
@@ -103,23 +134,24 @@ int main(int argc, char** argv)
   s.set_simpoint(simpoint, simpoint_interval);
 #else
   if(simpoint){
-    fprintf(stderr, "Spike wasn't compiled with Simpoint support.");
+    fprintf(stderr, "Spike wasn't compiled with Simpoint support.\n");
     exit(-1);
   }
 #endif
 
-#ifdef RISCV_ENABLE_DBG_TRACE
-  if (trace){
-    s.enable_trace(trace_last_n);
+#ifndef RISCV_ENABLE_DBG_TRACE
+  if(trace) {
+    fprintf(stderr, "Spike wasn't compiled with tracing support.\n");
+    exit(-1);
   }
 #else
-  if(trace){
-    fprintf(stderr, "Spike wasn't compiled with tracing support.");
+  if (trace && checkpoint) {
+    fprintf(stderr, "Doesn't support tracing and checkpointing together.\n");
     exit(-1);
   }
 #endif
 
-  int htif_code = 0;
+  int htif_code = true;
 
   if(checkpoint && (checkpoint_file == ""))
   {
@@ -129,8 +161,7 @@ int main(int argc, char** argv)
   // Initialize the processor before dumping/restoring checkpoint
   s.boot();
 
-  if(checkpoint)
-  { // Runs Spike in checkpoint mode
+  if (checkpoint) { // Runs Spike in checkpoint mode
     s.init_checkpoint();
     // Load the checkpoint description
     ckpt_desc_list ckpt_descs;
@@ -147,12 +178,12 @@ int main(int argc, char** argv)
       size_t step = it.second - amt_ran;
       fprintf(stderr, "Skipping for %lu instructions before next checkpointing\n",step);
       htif_code = s.run(step);
-      // Stop simulation if HTIF returns non-zero code
+      // Stop simulation if HTIF returns false
       if(!htif_code) return htif_code;
 
       fprintf(stderr, "Creating Checkpoint\n");
       htif_code = s.create_checkpoint(it.first);
-      // Stop simulation if HTIF returns non-zero code
+      // Stop simulation if HTIF returns false
       if(!htif_code){
         fprintf(stderr, "Checkpoint Creation Failed: HTIF Exit Code %d\n",htif_code);
         return htif_code;
@@ -160,16 +191,39 @@ int main(int argc, char** argv)
 
       amt_ran += step;
     }
-  }
-  else if (checkpoint_file != "")
-  { // Runs Spike in checkpoint restoring mode
-    fprintf(stderr, "Restoring checkpoint from %s\n",checkpoint_file.c_str());
-    s.restore_checkpoint(checkpoint_file);
-    htif_code = s.run(stop_amt);
-  }
-  else
-  { // Runs Spike in normal mode
-    htif_code = s.run(stop_amt);
+  } else { // Run Spike in normal mode
+    if (!checkpoint_file.empty()) { // Starting from a checkpoint?
+      fprintf(stderr, "Restoring checkpoint from %s\n",checkpoint_file.c_str());
+      s.restore_checkpoint(checkpoint_file);
+    }
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+    if (trace) { // trace enabled?
+      if (trace_skip_amt) {
+        if (stop_amt != NO_STOP) {
+          if (trace_skip_amt >= stop_amt) {
+            fprintf(stderr, "Error: trace skip amount must smaller than stop amount\n");
+            exit(-1);
+          }
+          stop_amt -= trace_skip_amt;
+        }
+        fprintf(stderr, "Fast forwarding %lu instruction before start tracing...\n", trace_skip_amt);
+        htif_code = s.run(trace_skip_amt);
+        fprintf(stderr, "Start tracing...\n");
+      }
+      if (htif_code) {
+        s.enable_trace(trace_last_n);
+      } else {
+        fprintf(stderr, "Warning: program ended before tracer is engaged\n");
+        return htif_code;
+      }
+    }
+#endif
+    if (stop_amt == NO_STOP) {
+      htif_code = s.run();
+    } else {
+      htif_code = s.run(stop_amt);
+    }
   }
 
   return htif_code;

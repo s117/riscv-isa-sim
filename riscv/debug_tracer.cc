@@ -40,6 +40,8 @@ void debug_tracer_t::enable_trace(uint64_t last_n) {
   } else {
     m_trace_output = new trace_output_direct_t(trace_file_name);
   }
+  // in case of we skipped some instructions before tracing, sync the seq no when start tracing
+  m_insn_seq = m_tgt_proc->get_state()->count + 1;
   m_enabled = true;
 }
 
