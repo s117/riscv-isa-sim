@@ -128,10 +128,6 @@ void processor_t::set_simpoint(bool enable, size_t interval)
   }
 }
 
-bool processor_t::get_simpoint()
-{
-  return simpoint_enabled;
-}
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE

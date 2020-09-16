@@ -96,7 +96,7 @@ public:
   bb_tracker_t* get_bbt() { return bbt; }
   void set_simpoint(bool enable, size_t interval);
 
-  bool get_simpoint();
+  bool get_simpoint() { return simpoint_enabled; };
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
