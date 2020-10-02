@@ -58,9 +58,9 @@ public:
   void set_interval_size(uint64_t m_interval_size);
 
   /* Called at each CTRL op, marking the end of a basic block.  The pc of the last
-   instruction indexes into the basic block hash, and the counter is inceremented
-   by the number of instructions in the basic block. */
-  void bb_tracker(uint64_t m_pc, uint64_t m_num_inst);
+   instruction indexes into the basic block hash, and the counter is incremented
+   by the number of instructions in the basic block. Return true on each stats dump. */
+  bool bb_tracker(uint64_t m_pc, uint64_t m_num_inst);
 };
 
 #endif

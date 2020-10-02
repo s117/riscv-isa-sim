@@ -75,7 +75,7 @@ void bb_tracker_t::append_bb_node(bb_node_ptr m_bb_node, bb_node_ptr head) {
 }
 
 
-/* Search for bb_node with pc, if found return 1, otherwise 
+/* Search for bb_node with pc, if found return 1, otherwise
    return 0 */
 int bb_tracker_t::find_bb_node(bb_node_ptr head, uint64_t pc, uint64_t num_inst) {
 
@@ -129,7 +129,7 @@ void bb_tracker_t::print_bb_hash() {
 }
 
 
-void bb_tracker_t::bb_tracker(uint64_t pc, uint64_t num_inst) {
+bool bb_tracker_t::bb_tracker(uint64_t pc, uint64_t num_inst) {
   /* key into bb-hash based on pc of last inst in bb*/
   uint64_t bb_key = (pc >> 2) % bb_size;
 
@@ -153,10 +153,11 @@ void bb_tracker_t::bb_tracker(uint64_t pc, uint64_t num_inst) {
   if (dyn_inst > interval_size) {
     dyn_inst -= interval_size;
     print_bb_hash();
+    return true;
   }
+  return false;
 }
 
 void bb_tracker_t::set_interval_size(uint64_t m_interval_size) {
   interval_size = m_interval_size;
 }
-
