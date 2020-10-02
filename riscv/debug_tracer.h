@@ -46,8 +46,9 @@ typedef struct {
 
   reg_t pc;
   insn_t insn;
-  uint64_t cycle;
   uint64_t seqno;
+  uint64_t cycle;
+  uint64_t instret;
 
   reg_record_t rs_rec[MAX_RSRC];
   reg_record_t rd_rec[MAX_RDST];
@@ -140,6 +141,8 @@ public:
 
   bool enabled() { return m_enabled; };
 
+  void increment_instret() { ++m_instret; };
+
 private:
   void drain_curr_record();
 
@@ -148,6 +151,7 @@ private:
   void seqno_incr();
 
   uint64_t m_insn_seq;
+  uint64_t m_instret;
 
   bool m_enabled;
   processor_t *m_tgt_proc;

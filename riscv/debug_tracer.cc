@@ -19,7 +19,8 @@ debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
   m_tgt_proc = target_processor;
   m_enabled = false;
-  m_insn_seq = 1;
+  m_insn_seq = 0;
+  m_instret = 0;
   m_trace_output = nullptr;
 }
 
@@ -40,8 +41,7 @@ void debug_tracer_t::enable_trace(uint64_t last_n) {
   } else {
     m_trace_output = new trace_output_direct_t(trace_file_name);
   }
-  // in case of we skipped some instructions before tracing, sync the seq no when start tracing
-  m_insn_seq = m_tgt_proc->get_state()->count + 1;
+  assert(m_instret == m_tgt_proc->get_state()->count);
   m_enabled = true;
 }
 
@@ -50,8 +50,9 @@ void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
     return;
 
   m_rec_insn.pc = pc;
-  m_rec_insn.cycle = m_insn_seq; // Assume one instruction per cycle in ISA simulator,
   m_rec_insn.seqno = m_insn_seq;
+  m_rec_insn.cycle = m_insn_seq; // Assume one trace per cycle in ISA simulator
+  m_rec_insn.instret = m_instret;
   m_rec_insn.valid = true;
 }
 
@@ -94,14 +95,15 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
     // the trap is caused by an external interrupt signal (async interrupt)
     insn_t null_insi(0);
     clear_curr_record();
-    // to log this event, an artificial NULL instruction is inserted,
-    // seqno=0 is to distinguish it to the real, core fetched instruction
-    m_rec_insn.pc = 0;
+    // to log this event, an artificial instruction is inserted
+    // to distinguish it from the real, core fetched instruction, pc is set to all 1 and instruction is set to NULL
+    m_rec_insn.pc = -1;
     m_rec_insn.insn = null_insi;
     m_rec_insn.good = false;
     m_rec_insn.valid = true;
+    m_rec_insn.seqno = m_insn_seq;
     m_rec_insn.cycle = m_insn_seq;
-    m_rec_insn.seqno = 0;
+    m_rec_insn.instret = m_instret;
     m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
     m_rec_insn.exception = true;
     drain_curr_record();
@@ -261,8 +263,8 @@ void trace_output_direct_t::output_insn_record(const insn_record_t &insn_rec) {
     auto insn = insn_rec.insn;
     auto insn_pc = insn_rec.pc;
 
-    ogzs_printf(m_tr_ostream, "C/%" PRIcycle " S/%" PRIu64 " PC/0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
-                insn_rec.cycle, insn_rec.seqno, insn_pc, insn.bits() & 0xffffffff,
+    ogzs_printf(m_tr_ostream, "S/%" PRIcycle " C/%" PRIu64 " I/%" PRIu64 " PC/0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
+                insn_rec.seqno, insn_rec.cycle, insn_rec.instret, insn_pc, insn.bits() & 0xffffffff,
                 m_disassembler.disassemble(insn).c_str());
     if (!insn_rec.good) {
       ogzs_printf(m_tr_ostream, "%s", "\tINV_FETCH\t0x00000001\n");

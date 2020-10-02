@@ -282,6 +282,12 @@ static size_t next_timer(state_t* state)
 
 size_t processor_t::step(size_t n)
 {
+#ifdef RISCV_ENABLE_DBG_TRACE
+#define increment_instret { ++instret; dbg_tracer->increment_instret(); };
+#else
+#define increment_instret { ++instret; };
+#endif
+
   size_t instret = 0;
   reg_t pc = state.pc;
   mmu_t* _mmu = mmu;
@@ -296,37 +302,28 @@ size_t processor_t::step(size_t n)
 
     if (unlikely(debug))
     {
-      while (instret++ < n)
+      while (instret < n)
       {
         insn_fetch_t fetch = mmu->load_insn(pc);
         disasm(fetch.insn);
         pc = execute_insn(this, pc, fetch);
-
+        increment_instret;
         fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
       }
     }
     else while (instret < n)
     {
-      // Why "instret++" then "instret--" here?
-      //
-      // "instret++" because I need to make sure if the instruction failed
-      // to fetch, it still increment the instret CSR
-      //
-      // "instret--" because later on instret will be incremented again by the
-      // code in icache fast path "ICACHE_ACCESS()"
-      instret++;
       size_t idx = _mmu->icache_index(pc);
       auto ic_entry = _mmu->access_icache(pc);
-      instret--;
 
       #define ICACHE_ACCESS(idx) { \
         insn_fetch_t fetch = ic_entry->data; \
         if(logging_on) { \
           disasm(fetch.insn,pc); \
         } \
-        instret++; \
         pc = execute_insn(this, pc, fetch); \
         ic_entry++; \
+        increment_instret; \
         ifprintf(logging_on,stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
         if (unlikely(instret == n)) break; \
         if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
@@ -340,18 +337,18 @@ size_t processor_t::step(size_t n)
   }
   catch(trap_t& t)
   {
-#ifdef RISCV_ENABLE_DBG_TRACE
-    auto epc = pc;
     pc = take_trap(t, pc);
-    dbg_tracer->trace_after_take_trap(t, epc, pc);
-#else
-    pc = take_trap(t, pc);
-#endif
-  }
-  catch(serialize_t& s) {
-    instret--;
-  }
 
+#ifdef RISCV_ENABLE_DBG_TRACE
+    dbg_tracer->trace_after_take_trap(t, state.epc, pc);
+#endif
+
+    // without the following, scall and sbreak instructions will not be counted
+    if (dynamic_cast<trap_syscall*>(&t) || dynamic_cast<trap_breakpoint*>(&t)) {
+      increment_instret;
+    }
+  }
+  catch(serialize_t& s) {}
   state.pc = pc;
   update_timer(&state, instret);
   return instret;
