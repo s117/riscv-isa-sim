@@ -37,7 +37,7 @@ void bb_tracker_t::init_bb_tracker(const char *dir_name, const char *out_name) {
   for (i = 0; i < bb_size; i++)
     bb_hash[i] = nullptr;
 
-  std::string finalname = std::string(dir_name) + "/" + out_name + ".bb.gz";
+  finalname = std::string(dir_name) + "/" + out_name + ".bb.gz";
   bbtrace.open(finalname.c_str());
   if (!bbtrace.good()) {
     std::cerr << "SimPoint output error: fail to open BB Vector output file" << finalname << std::endl;
