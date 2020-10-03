@@ -121,7 +121,7 @@ private:
   pc_freqvec_tracker_t* pc_freqvec_tracker;
 #endif
 
-#ifdef RISCV_ENABLE_SIMPOINT
+#ifdef RISCV_ENABLE_DBG_TRACE
   debug_tracer_t* dbg_tracer;
 #endif
 
