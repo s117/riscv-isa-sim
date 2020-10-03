@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 #include "bbtracker.h"
+#include "pc_freqvec_tracker.h"
 #include "processor.h"
 #include "extension.h"
 #include "common.h"
@@ -44,6 +45,7 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   num_bb_inst = 0;
   simpoint_enabled = false;
   bbt = new bb_tracker_t();
+  pc_freqvec_tracker = new pc_freqvec_tracker_t();
 #endif
 }
 
@@ -61,6 +63,7 @@ processor_t::~processor_t()
 
 #ifdef RISCV_ENABLE_SIMPOINT
   delete bbt;
+  delete pc_freqvec_tracker;
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
@@ -119,12 +122,15 @@ void processor_t::set_simpoint(bool enable, size_t interval)
 
   if (enable) {
     std::string bbv_file = std::string("bbv_proc_") + std::to_string(id);
-    char* bbv_dir = get_current_dir_name();
+    std::string pcfvec_file = std::string("pcfvec_proc_") + std::to_string(id);
+    char* curr_dir = get_current_dir_name();
 
-    bbt->init_bb_tracker(bbv_dir, bbv_file.c_str());
+    bbt->init_bb_tracker(curr_dir, bbv_file.c_str());
     bbt->set_interval_size(interval);
 
-    free(bbv_dir);
+    pc_freqvec_tracker->init_pc_freqvec_tracker(curr_dir, pcfvec_file.c_str());
+
+    free(curr_dir);
   }
 }
 
@@ -236,18 +242,6 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
   p->get_dbg_tracer()->trace_before_insn_execute(pc, fetch.insn);
 #endif
 
-#ifdef RISCV_ENABLE_SIMPOINT
-  if (p->get_simpoint())
-  {
-    reg_t opcode = fetch.insn.opcode();
-    if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
-      bb_tracker_t* bbt = p->get_bbt();
-      bbt->bb_tracker((uint64_t)pc,p->num_bb_inst);
-      p->num_bb_inst = 0;
-    }
-  }
-#endif
-
   reg_t npc = fetch.func(p, fetch.insn, pc);
   commit_log(p->get_state(), pc, fetch.insn);
   p->update_histogram(pc);
@@ -259,7 +253,14 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 #ifdef RISCV_ENABLE_SIMPOINT
   if (p->get_simpoint())
   {
-    p->num_bb_inst++;
+    reg_t opcode = fetch.insn.opcode();
+    if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
+      bb_tracker_t* bbt = p->get_bbt();
+      if (unlikely(bbt->bb_tracker((uint64_t)pc,p->num_bb_inst)))
+        p->get_pc_freqvec_tracker()->finish_vec();
+      p->num_bb_inst = 0;
+    }
+    p->get_pc_freqvec_tracker()->update_vec(pc);
   }
 #endif
   return npc;
@@ -282,15 +283,27 @@ static size_t next_timer(state_t* state)
 
 size_t processor_t::step(size_t n)
 {
-#ifdef RISCV_ENABLE_DBG_TRACE
-#define increment_instret { ++instret; dbg_tracer->increment_instret(); };
-#else
-#define increment_instret { ++instret; };
-#endif
-
   size_t instret = 0;
   reg_t pc = state.pc;
   mmu_t* _mmu = mmu;
+
+  #ifdef RISCV_ENABLE_DBG_TRACE
+    #define dbg_tracker_increment_instret() { dbg_tracer->increment_instret(); }
+  #else
+    #define dbg_tracker_increment_instret() {}
+  #endif
+
+  #ifdef RISCV_ENABLE_SIMPOINT
+    #define increment_num_bb_inst() { ++num_bb_inst; }
+  #else
+    #define increment_num_bb_inst() {}
+  #endif
+
+  #define increment_instret() { \
+    ++instret; \
+    dbg_tracker_increment_instret(); \
+    increment_num_bb_inst(); \
+  };
 
   if (unlikely(!run || !n))
     return 0;
@@ -307,33 +320,33 @@ size_t processor_t::step(size_t n)
         insn_fetch_t fetch = mmu->load_insn(pc);
         disasm(fetch.insn);
         pc = execute_insn(this, pc, fetch);
-        increment_instret;
+        increment_instret();
         fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
       }
     }
     else while (instret < n)
-    {
-      size_t idx = _mmu->icache_index(pc);
-      auto ic_entry = _mmu->access_icache(pc);
+      {
+        size_t idx = _mmu->icache_index(pc);
+        auto ic_entry = _mmu->access_icache(pc);
 
-      #define ICACHE_ACCESS(idx) { \
+#define ICACHE_ACCESS(idx) { \
         insn_fetch_t fetch = ic_entry->data; \
         if(logging_on) { \
           disasm(fetch.insn,pc); \
         } \
         pc = execute_insn(this, pc, fetch); \
         ic_entry++; \
-        increment_instret; \
+        increment_instret(); \
         ifprintf(logging_on,stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
         if (unlikely(instret == n)) break; \
         if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
         if (unlikely(ic_entry->tag != pc)) break; \
       }
 
-      switch (idx) {
-        #include "icache.h"
+        switch (idx) {
+#include "icache.h"
+        }
       }
-    }
   }
   catch(trap_t& t)
   {
@@ -342,10 +355,12 @@ size_t processor_t::step(size_t n)
 #ifdef RISCV_ENABLE_DBG_TRACE
     dbg_tracer->trace_after_take_trap(t, state.epc, pc);
 #endif
-
     // without the following, scall and sbreak instructions will not be counted
     if (dynamic_cast<trap_syscall*>(&t) || dynamic_cast<trap_breakpoint*>(&t)) {
-      increment_instret;
+#ifdef RISCV_ENABLE_SIMPOINT
+      pc_freqvec_tracker->update_vec(pc);
+#endif
+      increment_instret();
     }
   }
   catch(serialize_t& s) {}
@@ -358,8 +373,8 @@ reg_t processor_t::take_trap(trap_t& t, reg_t epc)
 {
   //TODO: Add this back
   //if (debug)
-    ifprintf(logging_on,stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
-            id, t.name(), epc);
+  ifprintf(logging_on,stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
+           id, t.name(), epc);
 
   // switch to supervisor, set previous supervisor bit, disable interrupts
   set_pcr(CSR_STATUS, (((state.sr & ~SR_EI) | SR_S) & ~SR_PS & ~SR_PEI) |
@@ -633,4 +648,3 @@ void processor_t::register_extension(extension_t* x)
   ext = x;
   x->set_processor(this);
 }
-

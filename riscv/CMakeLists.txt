@@ -25,6 +25,7 @@ set(
         gzstream.h
         ckpt_desc_reader.h
         debug_tracer.h
+        pc_freqvec_tracker.h
         ${riscv_gen_hdrs}
 )
 

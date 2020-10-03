@@ -17,6 +17,7 @@ class extension_t;
 class disassembler_t;
 class bb_tracker_t;
 class debug_tracer_t;
+class pc_freqvec_tracker_t;
 
 struct insn_desc_t
 {
@@ -94,6 +95,7 @@ public:
   bool simpoint_enabled;
   uint64_t num_bb_inst;
   bb_tracker_t* get_bbt() { return bbt; }
+  pc_freqvec_tracker_t* get_pc_freqvec_tracker() { return pc_freqvec_tracker; }
   void set_simpoint(bool enable, size_t interval);
 
   bool get_simpoint() { return simpoint_enabled; };
@@ -116,6 +118,7 @@ private:
 
 #ifdef RISCV_ENABLE_SIMPOINT
   bb_tracker_t* bbt;
+  pc_freqvec_tracker_t* pc_freqvec_tracker;
 #endif
 
 #ifdef RISCV_ENABLE_SIMPOINT
