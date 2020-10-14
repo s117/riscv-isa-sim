@@ -9,7 +9,7 @@ set(SCRIPT_DIR ${PROJECT_SOURCE_DIR}/scripts)
 
 # When calling the configure script of isa-sim and fesvr, this path is used as:
 #     configure --prefix=${AC_CONFIGURE_PREFIX} ...
-set(AC_CONFIGURE_PREFIX ${CMAKE_BINARY_DIR}/install)
+set(AC_CONFIGURE_PREFIX ${PROJECT_SOURCE_DIR}/../install-linux)
 
 set(
         ISA_SIM_AC_CONFIGURE_ARGS
@@ -18,6 +18,12 @@ set(
         --enable-simpoint
         --enable-dbg-trace
 )
+
+#set(CMAKE_CXX_FLAGS_MYREL "-O3 -march=native -mtune=native -xCOFFEELAKE -g")
+#set(CMAKE_C_FLAGS_MYREL "-O3 -march=native -mtune=native -xCOFFEELAKE -g")
+
+set(CMAKE_CXX_FLAGS_MYREL "-O3 -g")
+set(CMAKE_C_FLAGS_MYREL "-O3 -g")
 
 add_subdirectory(riscv-fesvr)
 
