@@ -31,7 +31,7 @@ static std::pair<std::string, std::string> rsplit(std::string &s, char p) {
 void ckpt_desc_print(const ckpt_desc_list &c) {
   std::cout << "Checkpoint(s) to create: " << std::endl;
   for (auto &it : c) {
-    std::cout << "  Checkpoint: "<<it.first << ", skip amount: " << it.second << std::endl;
+    std::cout << "  Checkpoint: " << it.first << ", skip amount: " << it.second << std::endl;
   }
 }
 
@@ -70,7 +70,7 @@ void ckpt_desc_validate(const ckpt_desc_list &c) noexcept(false) {
 ckpt_desc_list ckpt_desc_file_read(const std::string &filepath) noexcept(false) {
   ckpt_desc_list result;
 
-  auto desc_file = std::ifstream();
+  std::ifstream desc_file;
   desc_file.open(filepath, std::ios::in);
   if (!desc_file.good()) {
     throw std::runtime_error("Cannot open '" + filepath + "'.");
@@ -86,7 +86,7 @@ ckpt_desc_list ckpt_desc_file_read(const std::string &filepath) noexcept(false) 
     lr_pair = std::make_pair(trim(lr_pair.first), trim(lr_pair.second));
 
     auto ckpt_name = lr_pair.first;
-    auto ckpt_skip_amt_in_stream = std::istringstream(lr_pair.second);
+    std::istringstream ckpt_skip_amt_in_stream(lr_pair.second);
     size_t ckpt_skip_amt;
 
     ckpt_skip_amt_in_stream >> ckpt_skip_amt;
