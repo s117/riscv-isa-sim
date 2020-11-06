@@ -41,7 +41,7 @@ void debug_tracer_t::enable_trace(uint64_t last_n) {
   } else {
     m_trace_output = new trace_output_direct_t(trace_file_name);
   }
-  assert(m_instret == m_tgt_proc->get_state()->count);
+  m_instret = m_tgt_proc->get_state()->count;
   m_enabled = true;
 }
 
