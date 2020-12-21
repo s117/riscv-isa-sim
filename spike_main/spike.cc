@@ -191,6 +191,8 @@ int main(int argc, char** argv)
 
       amt_ran += step;
     }
+
+    return 0;
   } else { // Run Spike in normal mode
     if (!checkpoint_file.empty()) { // Starting from a checkpoint?
       fprintf(stderr, "Restoring checkpoint from %s\n",checkpoint_file.c_str());
