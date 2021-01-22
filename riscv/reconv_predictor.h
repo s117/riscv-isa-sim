@@ -107,12 +107,21 @@ public:
     // Update the HitReturn bit
     if (BelowPotentialActive) {
       BelowPotential.set_HitReturn();
+      // TODO: Justify this with the observation from above_test
+      if (LastBranchTaken) BelowPotential.clear_ARTaken();
+      else BelowPotential.clear_ARNTaken();
     }
     if (AbovePotentialActive) {
       AbovePotential.set_HitReturn();
+      // TODO: Justify this with the observation from above_test
+      if (LastBranchTaken) AbovePotential.clear_ARTaken();
+      else AbovePotential.clear_ARNTaken();
     }
     if (ReboundPotentialActive) {
       ReboundPotential.set_HitReturn();
+      // TODO: Justify this with the observation from above_test
+      if (LastBranchTaken) ReboundPotential.clear_ARTaken();
+      else ReboundPotential.clear_ARNTaken();
     }
 
     // Recover the active bits for the old call level
