@@ -510,8 +510,8 @@ public:
   }
 
   bool filter(uint64_t pc) {
-    static const uint64_t SAMPLE_THRESHOLD = 1; //30; // only stop filtering if we have sampled at least SAMPLE_THRESHOLD,
-    static const double BIAS_THRESHOLD = 1; //0.95;   // and the the bias rate is lower than this
+    static const uint64_t SAMPLE_THRESHOLD = 30;//1; //30; // only stop filtering if we have sampled at least SAMPLE_THRESHOLD,
+    static const double BIAS_THRESHOLD = 0.95;//1; //0.95;   // and the the bias rate is lower than this
 
     if (!m_branches_history.count(pc))
       return true; // filter out the pc that never be trained
