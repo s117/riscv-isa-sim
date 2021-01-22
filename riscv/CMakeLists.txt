@@ -26,6 +26,7 @@ set(
         ckpt_desc_reader.h
         debug_tracer.h
         pc_freqvec_tracker.h
+        reconv_predictor.h
         ${riscv_gen_hdrs}
 )
 
@@ -47,6 +48,7 @@ set(
         gzstream.cc
         ckpt_desc_reader.cc
         debug_tracer.cc
+        reconv_predictor.cpp
         ${riscv_gen_srcs}
 )
 

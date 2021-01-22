@@ -19,16 +19,18 @@
 #include <stdexcept>
 #include <algorithm>
 #include "unistd.h"
+#include <reconv_predictor.h>
+
+static reconv_predictor reconv_pred;
 
 #undef STATE
 #define STATE state
 
 extern bool logging_on;
 
-processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
+processor_t::processor_t(sim_t *_sim, mmu_t *_mmu, uint32_t _id)
   : sim(_sim), mmu(_mmu), ext(NULL), disassembler(new disassembler_t),
-    id(_id), run(false), debug(false), serialized(false)
-{
+    id(_id), run(false), debug(false), serialized(false) {
 #ifdef RISCV_ENABLE_DBG_TRACE
   dbg_tracer = new debug_tracer_t(this);
 #endif
@@ -37,7 +39,9 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   mmu->set_processor(this);
 
   #define DECLARE_INSN(name, match, mask) REGISTER_INSN(this, name, match, mask)
+
   #include "encoding.h"
+
   #undef DECLARE_INSN
   build_opcode_map();
 
@@ -49,8 +53,7 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
 #endif
 }
 
-processor_t::~processor_t()
-{
+processor_t::~processor_t() {
 #ifdef RISCV_ENABLE_HISTOGRAM
   if (histogram_enabled)
   {
@@ -71,10 +74,15 @@ processor_t::~processor_t()
 #endif
 
   delete disassembler;
+  std::ofstream rpt_csv ("RPT_Result.csv");
+  rpt_csv << reconv_pred.dump_RPT_result_csv();
+  rpt_csv.close();
+  std::ofstream bft_csv ("BFT_Result.csv");
+  bft_csv << reconv_pred.dump_BFT_result_csv();
+  bft_csv.close();
 }
 
-void state_t::reset()
-{
+void state_t::reset() {
   // the ISA guarantees on boot that the PC is 0x2000 and the the processor
   // is in supervisor mode, and in 64-bit mode, if supported, with traps
   // and virtual memory disabled.
@@ -103,27 +111,25 @@ void state_t::reset()
   load_reservation = -1;
 }
 
-void processor_t::set_debug(bool value)
-{
+void processor_t::set_debug(bool value) {
   debug = value;
   if (ext)
     ext->set_debug(value);
 }
 
-void processor_t::set_histogram(bool value)
-{
+void processor_t::set_histogram(bool value) {
   histogram_enabled = value;
 }
 
 #ifdef RISCV_ENABLE_SIMPOINT
-void processor_t::set_simpoint(bool enable, size_t interval)
-{
+
+void processor_t::set_simpoint(bool enable, size_t interval) {
   simpoint_enabled = enable;
 
   if (enable) {
     std::string bbv_file = std::string("bbv_proc_") + std::to_string(id);
     std::string pcfvec_file = std::string("pcfvec_proc_") + std::to_string(id);
-    char* curr_dir = get_current_dir_name();
+    char *curr_dir = get_current_dir_name();
 
     bbt->init_bb_tracker(curr_dir, bbv_file.c_str());
     bbt->set_interval_size(interval);
@@ -137,8 +143,8 @@ void processor_t::set_simpoint(bool enable, size_t interval)
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-void processor_t::enable_trace(size_t n)
-{
+
+void processor_t::enable_trace(size_t n) {
   if (!dbg_tracer->enabled()) {
     #ifdef __DBG_TRACE_DEBUG_OUTPUT
     std::string trace_file_name = std::string("trace_proc_") + std::to_string(get_id()) + ".txt";
@@ -161,35 +167,31 @@ void processor_t::enable_insn_info_collection() {
   }
 }
 
-reg_t processor_t::rd_xpr(size_t rn, operand_t operand)
-{
+reg_t processor_t::rd_xpr(size_t rn, operand_t operand) {
   auto val = state.XPR[rn];
   dbg_tracer->trace_after_xpr_access(rn, val, operand);
   return val;
 }
 
-void processor_t::wr_xpr(size_t rn, reg_t val)
-{
+void processor_t::wr_xpr(size_t rn, reg_t val) {
   state.XPR.write(rn, val);
   dbg_tracer->trace_after_xpr_access(rn, val, RDST_OPERAND);
 }
 
-freg_t processor_t::rd_fpr(size_t rn, operand_t operand)
-{
+freg_t processor_t::rd_fpr(size_t rn, operand_t operand) {
   auto val = state.FPR[rn];
   dbg_tracer->trace_after_fpr_access(rn, val, operand);
   return val;
 }
 
-void processor_t::wr_fpr(size_t rn, freg_t val)
-{
+void processor_t::wr_fpr(size_t rn, freg_t val) {
   state.FPR.write(rn, val);
   dbg_tracer->trace_after_fpr_access(rn, val, RDST_OPERAND);
 }
+
 #endif
 
-void processor_t::reset(bool value)
-{
+void processor_t::reset(bool value) {
 
   fprintf(stderr, "******* Resetting core ********** \n");
   if (run == !value)
@@ -203,29 +205,27 @@ void processor_t::reset(bool value)
     ext->reset(); // reset the extension
 }
 
-struct serialize_t {};
+struct serialize_t {
+};
 
-void processor_t::serialize()
-{
+void processor_t::serialize() {
   if (serialized)
     serialized = false;
   else
     serialized = true, throw serialize_t();
 }
 
-void processor_t::take_interrupt()
-{
+void processor_t::take_interrupt() {
   int irqs = ((state.sr & SR_IP) >> SR_IP_SHIFT) & (state.sr >> SR_IM_SHIFT);
   if (likely(!irqs) || likely(!(state.sr & SR_EI)))
     return;
 
-  for (int i = 0; ; i++)
+  for (int i = 0;; i++)
     if ((irqs >> i) & 1)
       throw trap_t((1ULL << ((state.sr & SR_S64) ? 63 : 31)) + i);
 }
 
-static void commit_log(state_t* state, reg_t pc, insn_t insn)
-{
+static void commit_log(state_t *state, reg_t pc, insn_t insn) {
 #ifdef RISCV_ENABLE_COMMITLOG
   if (state->sr & SR_EI) {
     uint64_t mask = (insn.length() == 8 ? uint64_t(0) : (uint64_t(1) << (insn.length() * 8))) - 1;
@@ -244,16 +244,14 @@ static void commit_log(state_t* state, reg_t pc, insn_t insn)
 #endif
 }
 
-inline void processor_t::update_histogram(size_t pc)
-{
+inline void processor_t::update_histogram(size_t pc) {
 #ifdef RISCV_ENABLE_HISTOGRAM
   size_t idx = pc >> 2;
   pc_histogram[idx]++;
 #endif
 }
 
-static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
-{
+static reg_t execute_insn(processor_t *p, reg_t pc, insn_fetch_t fetch) {
 
 #ifdef RISCV_ENABLE_DBG_TRACE
   p->get_dbg_tracer()->trace_before_insn_execute(pc, fetch.insn);
@@ -267,13 +265,46 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
   p->get_dbg_tracer()->trace_after_insn_execute(pc);
 #endif
 
+  // BEGIN: RETIRE STAGE LOGIC FOR RECONVERGE PREDICTOR
+  if ((p->get_state()->sr & SR_S) == 0) {
+    // only training the reconvergence predictor when executing user mode code
+    auto &retired_insn = fetch.insn;
+    const auto retired_insn_opcode = retired_insn.opcode();
+    const static int reg_RA = 1;
+    const static int reg_ZERO = 0;
+
+    if (retired_insn_opcode == OP_JAL && retired_insn.rd() == reg_RA) {
+      // test for call
+      reconv_pred.on_function_call(pc, npc);
+    } else if (retired_insn_opcode == OP_JALR && retired_insn.rd() == reg_RA) {
+      // test for indirect call
+      reconv_pred.on_function_call(pc, npc);
+    } else if (
+      retired_insn_opcode == OP_JALR &&
+      retired_insn.rs1() == reg_RA && retired_insn.rd() == reg_ZERO
+      ) {
+      // test for return
+      reconv_pred.on_function_return(pc, npc);
+    } else if (retired_insn_opcode == OP_JALR) {
+      // deem all the rest JALR as indirect jump
+      reconv_pred.on_indirect_jmp_retired(pc);
+    } else if (retired_insn_opcode == OP_BRANCH) {
+      // branches' target usually is anything but pc + 4
+      reconv_pred.on_branch_retired(pc, pc + 4 == npc);
+    } else {
+      // all others
+      reconv_pred.on_other_insn_retired(pc);
+    }
+  }
+  // END: RETIRE STAGE LOGIC FOR RECONVERGE PREDICTOR
+
+
 #ifdef RISCV_ENABLE_SIMPOINT
-  if (p->get_simpoint())
-  {
+  if (p->get_simpoint()) {
     reg_t opcode = fetch.insn.opcode();
-    if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
-      bb_tracker_t* bbt = p->get_bbt();
-      if (unlikely(bbt->bb_tracker((uint64_t)pc,p->num_bb_inst)))
+    if (opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH) {
+      bb_tracker_t *bbt = p->get_bbt();
+      if (unlikely(bbt->bb_tracker((uint64_t) pc, p->num_bb_inst)))
         p->get_pc_freqvec_tracker()->finish_vec();
       p->num_bb_inst = 0;
     }
@@ -283,26 +314,23 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
   return npc;
 }
 
-static void update_timer(state_t* state, size_t instret)
-{
-  uint64_t count0 = (uint64_t)(uint32_t)state->count;
+static void update_timer(state_t *state, size_t instret) {
+  uint64_t count0 = (uint64_t) (uint32_t) state->count;
   state->count += instret;
   uint64_t before = count0 - state->compare;
   if (int64_t(before ^ (before + instret)) < 0)
     state->sr |= (1 << (IRQ_TIMER + SR_IP_SHIFT));
 }
 
-static size_t next_timer(state_t* state)
-{
-  return state->compare - (uint32_t)state->count;
+static size_t next_timer(state_t *state) {
+  return state->compare - (uint32_t) state->count;
 }
 
 
-size_t processor_t::step(size_t n)
-{
+size_t processor_t::step(size_t n) {
   size_t instret = 0;
   reg_t pc = state.pc;
-  mmu_t* _mmu = mmu;
+  mmu_t *_mmu = mmu;
 
   #ifdef RISCV_ENABLE_DBG_TRACE
     #define dbg_tracker_increment_instret() { dbg_tracer->increment_instret(); }
@@ -326,23 +354,21 @@ size_t processor_t::step(size_t n)
     return 0;
   n = std::min(n, next_timer(&state) | 1U);
 
-  try
-  {
+  try {
     take_interrupt();
 
-    if (unlikely(debug))
-    {
-      while (instret < n)
-      {
+    if (unlikely(debug)) {
+      while (instret < n) {
         insn_fetch_t fetch = mmu->load_insn(pc);
         disasm(fetch.insn);
         pc = execute_insn(this, pc, fetch);
         increment_instret();
-        fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
+        fprintf(stderr, "RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n", STATE.XPR[fetch.insn.rs1()],
+                STATE.XPR[fetch.insn.rs2()], STATE.XPR[fetch.insn.rd()]);  \
+
       }
-    }
-    else while (instret < n)
-      {
+    } else
+      while (instret < n) {
         size_t idx = _mmu->icache_index(pc);
         auto ic_entry = _mmu->access_icache(pc);
 
@@ -365,32 +391,30 @@ size_t processor_t::step(size_t n)
         }
       }
   }
-  catch(trap_t& t)
-  {
+  catch (trap_t &t) {
     pc = take_trap(t, pc);
 
 #ifdef RISCV_ENABLE_DBG_TRACE
     dbg_tracer->trace_after_take_trap(t, state.epc, pc);
 #endif
     // without the following, scall and sbreak instructions will not be counted
-    if (dynamic_cast<trap_syscall*>(&t) || dynamic_cast<trap_breakpoint*>(&t)) {
+    if (dynamic_cast<trap_syscall *>(&t) || dynamic_cast<trap_breakpoint *>(&t)) {
 #ifdef RISCV_ENABLE_SIMPOINT
       pc_freqvec_tracker->update_vec(pc);
 #endif
       increment_instret();
     }
   }
-  catch(serialize_t& s) {}
+  catch (serialize_t &s) {}
   state.pc = pc;
   update_timer(&state, instret);
   return instret;
 }
 
-reg_t processor_t::take_trap(trap_t& t, reg_t epc)
-{
+reg_t processor_t::take_trap(trap_t &t, reg_t epc) {
   //TODO: Add this back
   //if (debug)
-  ifprintf(logging_on,stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
+  ifprintf(logging_on, stderr, "core %3d: exception %s, epc 0x%016" PRIx64 "\n",
            id, t.name(), epc);
 
   // switch to supervisor, set previous supervisor bit, disable interrupts
@@ -405,30 +429,25 @@ reg_t processor_t::take_trap(trap_t& t, reg_t epc)
   return state.evec;
 }
 
-void processor_t::deliver_ipi()
-{
+void processor_t::deliver_ipi() {
   if (run)
     set_pcr(CSR_CLEAR_IPI, 1);
 }
 
-void processor_t::disasm(insn_t insn)
-{
+void processor_t::disasm(insn_t insn) {
   uint64_t bits = insn.bits() & ((1ULL << (8 * insn_length(insn.bits()))) - 1);
   fprintf(stderr, "core %3d: 0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
           id, state.pc, bits, disassembler->disassemble(insn).c_str());
 }
 
-void processor_t::disasm(insn_t insn,reg_t pc)
-{
+void processor_t::disasm(insn_t insn, reg_t pc) {
   uint64_t bits = insn.bits() & ((1ULL << (8 * insn_length(insn.bits()))) - 1);
   fprintf(stderr, "core %3d: 0x%016" PRIx64 " (0x%08" PRIx64 ") %s\n",
           id, pc, bits, disassembler->disassemble(insn).c_str());
 }
 
-void processor_t::set_pcr(int which, reg_t val)
-{
-  switch (which)
-  {
+void processor_t::set_pcr(int which, reg_t val) {
+  switch (which) {
     case CSR_FFLAGS:
       state.fflags = val & (FSR_AEXC >> FSR_AEXC_SHIFT);
       break;
@@ -463,7 +482,7 @@ void processor_t::set_pcr(int which, reg_t val)
       state.count = val;
       break;
     case CSR_COUNTH:
-      state.count = (val << 32) | (uint32_t)state.count;
+      state.count = (val << 32) | (uint32_t) state.count;
       break;
     case CSR_COMPARE:
       serialize();
@@ -471,7 +490,7 @@ void processor_t::set_pcr(int which, reg_t val)
       state.compare = val;
       break;
     case CSR_PTBR:
-      state.ptbr = val & ~(PGSIZE-1);
+      state.ptbr = val & ~(PGSIZE - 1);
       break;
     case CSR_SEND_IPI:
       sim->send_ipi(val);
@@ -495,17 +514,14 @@ void processor_t::set_pcr(int which, reg_t val)
   }
 }
 
-void processor_t::set_fromhost(reg_t val)
-{
+void processor_t::set_fromhost(reg_t val) {
   set_interrupt(IRQ_HOST, val != 0);
   state.fromhost = val;
-  ifprintf(logging_on,stderr,"setting FROMHOST to %lu  STATUS = %u\n",val,state.sr);
+  ifprintf(logging_on, stderr, "setting FROMHOST to %lu  STATUS = %u\n", val, state.sr);
 }
 
-reg_t processor_t::get_pcr(int which)
-{
-  switch (which)
-  {
+reg_t processor_t::get_pcr(int which) {
+  switch (which) {
     case CSR_FFLAGS:
       require_fp;
       return state.fflags;
@@ -586,8 +602,7 @@ reg_t processor_t::get_pcr(int which)
   throw trap_illegal_instruction();
 }
 
-void processor_t::set_interrupt(int which, bool on)
-{
+void processor_t::set_interrupt(int which, bool on) {
   uint32_t mask = (1 << (which + SR_IP_SHIFT)) & SR_IP;
   if (on)
     state.sr |= mask;
@@ -595,15 +610,13 @@ void processor_t::set_interrupt(int which, bool on)
     state.sr &= ~mask;
 }
 
-reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc)
-{
+reg_t illegal_instruction(processor_t *p, insn_t insn, reg_t pc) {
   throw trap_illegal_instruction();
 }
 
-insn_func_t processor_t::decode_insn(insn_t insn)
-{
-  size_t mask = opcode_map.size()-1;
-  insn_desc_t* desc = opcode_map[insn.bits() & mask];
+insn_func_t processor_t::decode_insn(insn_t insn) {
+  size_t mask = opcode_map.size() - 1;
+  insn_desc_t *desc = opcode_map[insn.bits() & mask];
 
   while ((insn.bits() & desc->mask) != desc->match)
     desc++;
@@ -611,50 +624,48 @@ insn_func_t processor_t::decode_insn(insn_t insn)
   return rv64 ? desc->rv64 : desc->rv32;
 }
 
-void processor_t::register_insn(insn_desc_t desc)
-{
+void processor_t::register_insn(insn_desc_t desc) {
   assert(desc.mask & 1);
   instructions.push_back(desc);
 }
 
-void processor_t::build_opcode_map()
-{
+void processor_t::build_opcode_map() {
   size_t buckets = -1;
-  for (auto& inst : instructions)
+  for (auto &inst : instructions)
     while ((inst.mask & buckets) != buckets)
       buckets /= 2;
   buckets++;
 
   struct cmp {
     decltype(insn_desc_t::match) mask;
+
     cmp(decltype(mask) mask) : mask(mask) {}
-    bool operator()(const insn_desc_t& lhs, const insn_desc_t& rhs) {
+
+    bool operator()(const insn_desc_t &lhs, const insn_desc_t &rhs) {
       if ((lhs.match & mask) != (rhs.match & mask))
         return (lhs.match & mask) < (rhs.match & mask);
       return lhs.match < rhs.match;
     }
   };
-  std::sort(instructions.begin(), instructions.end(), cmp(buckets-1));
+  std::sort(instructions.begin(), instructions.end(), cmp(buckets - 1));
 
   opcode_map.resize(buckets);
   opcode_store.resize(instructions.size() + 1);
 
   size_t j = 0;
-  for (size_t b = 0, i = 0; b < buckets; b++)
-  {
+  for (size_t b = 0, i = 0; b < buckets; b++) {
     opcode_map[b] = &opcode_store[j];
-    while (i < instructions.size() && b == (instructions[i].match & (buckets-1)))
+    while (i < instructions.size() && b == (instructions[i].match & (buckets - 1)))
       opcode_store[j++] = instructions[i++];
   }
 
-  assert(j == opcode_store.size()-1);
+  assert(j == opcode_store.size() - 1);
   opcode_store[j].match = opcode_store[j].mask = 0;
   opcode_store[j].rv32 = &illegal_instruction;
   opcode_store[j].rv64 = &illegal_instruction;
 }
 
-void processor_t::register_extension(extension_t* x)
-{
+void processor_t::register_extension(extension_t *x) {
   for (auto insn : x->get_instructions())
     register_insn(insn);
   build_opcode_map();
