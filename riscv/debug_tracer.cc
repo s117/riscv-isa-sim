@@ -30,17 +30,8 @@ debug_tracer_t::~debug_tracer_t() {
   }
 }
 
-void debug_tracer_t::enable_trace(uint64_t last_n) {
-#ifdef __DBG_TRACE_DEBUG_OUTPUT
-  std::string trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".txt";
-#else
-  std::string trace_file_name = std::string("trace_proc_") + std::to_string(m_tgt_proc->get_id()) + ".gz";
-#endif
-  if (last_n != 0) {
-    m_trace_output = new trace_output_last_n_t(trace_file_name, last_n);
-  } else {
-    m_trace_output = new trace_output_direct_t(trace_file_name);
-  }
+void debug_tracer_t::enable_trace(trace_output_t *trace_outputter) {
+  m_trace_output = trace_outputter;
   m_instret = m_tgt_proc->get_state()->count;
   m_enabled = true;
 }
@@ -215,6 +206,10 @@ void debug_tracer_t::seqno_incr() {
     fprintf(stderr, "Traced 0x%" PRIX64 " instructions.\n", m_insn_seq);
   }
   ++m_insn_seq;
+}
+
+const insn_record_t &debug_tracer_t::get_current_insn_info() {
+  return m_rec_insn;
 }
 
 /************* Trace Output *************/

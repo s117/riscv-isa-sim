@@ -67,6 +67,11 @@ public:
   virtual void issue_insn(const insn_record_t &insn) = 0;
 };
 
+class trace_output_null_t : public trace_output_t {
+public:
+  void issue_insn(const insn_record_t &insn) final {};
+};
+
 class trace_output_direct_t : public trace_output_t {
 public:
   explicit trace_output_direct_t(const std::string &filename_out);
@@ -122,7 +127,7 @@ public:
 
   virtual ~debug_tracer_t();
 
-  void enable_trace(uint64_t last_n = 0);
+  void enable_trace(trace_output_t *trace_outputter);
 
   void trace_before_insn_ic_fetch(reg_t pc);
 
@@ -143,6 +148,8 @@ public:
   bool enabled() { return m_enabled; };
 
   void increment_instret() { ++m_instret; };
+
+  const insn_record_t &get_current_insn_info();
 
 private:
   void drain_curr_record();

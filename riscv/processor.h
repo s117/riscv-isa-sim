@@ -103,6 +103,7 @@ public:
 
 #ifdef RISCV_ENABLE_DBG_TRACE
   void enable_trace(size_t n);
+  void enable_insn_info_collection();
   debug_tracer_t* get_dbg_tracer() { return dbg_tracer; };
   reg_t rd_xpr(size_t rn, operand_t operand);
   void wr_xpr(size_t rn, reg_t val);
