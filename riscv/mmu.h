@@ -50,7 +50,7 @@ public:
       void* paddr = translate(addr, sizeof(type##_t), false, false); \
       auto load_val = *(type##_t*)paddr; \
       if (likely(insn_tracer != nullptr)) \
-        insn_tracer->trace_after_dc_access(addr, load_val, sizeof(type##_t), false); \
+        insn_tracer->trace_after_dc_access(addr, ((uintptr_t)paddr - (uintptr_t)mem), load_val, sizeof(type##_t), false); \
       return load_val; \
     }
 
@@ -62,7 +62,7 @@ public:
       void* paddr = translate(addr, sizeof(type##_t), true, false); \
       *(type##_t*)paddr = val; \
       if (likely(insn_tracer != nullptr)) \
-        insn_tracer->trace_after_dc_access(addr, val, sizeof(type##_t), true); \
+        insn_tracer->trace_after_dc_access(addr, ((uintptr_t)paddr - (uintptr_t)mem), val, sizeof(type##_t), true); \
     }
 #else
   // template for functions that load an aligned value from memory
@@ -218,7 +218,7 @@ private:
 
     return refill_tlb(addr, bytes, store, fetch);
   }
-  
+
   friend class processor_t;
 };
 

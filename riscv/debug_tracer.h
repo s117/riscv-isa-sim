@@ -32,6 +32,7 @@ typedef struct {
   bool write;
 
   reg_t vaddr;
+  reg_t paddr;
   uint64_t val;
   size_t op_size;
 } mem_record_t;
@@ -133,7 +134,7 @@ public:
 
   void trace_before_dc_translate(reg_t vaddr, bool write);
 
-  void trace_after_dc_access(reg_t vaddr, freg_t val, size_t size, bool write);
+  void trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write);
 
   void trace_after_insn_execute(reg_t pc);
 
