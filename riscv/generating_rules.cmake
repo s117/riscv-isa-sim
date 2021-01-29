@@ -45,7 +45,7 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E env bash -c "\
             ${CMAKE_CURRENT_SOURCE_DIR}/gen_icache `grep 'ICACHE_ENTRIES =' ${CMAKE_CURRENT_SOURCE_DIR}/mmu.h | \
             sed 's/.* = \\(.*\\);/\\1/'` \
-            >> ${riscv_gen_icache_h} \
+            > ${riscv_gen_icache_h} \
         "
 )
 
