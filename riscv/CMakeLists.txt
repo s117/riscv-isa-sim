@@ -27,6 +27,7 @@ set(
         debug_tracer.h
         pc_freqvec_tracker.h
         reconv_predictor.h
+        riscv_reconv_predictor.h
         ${riscv_gen_hdrs}
 )
 

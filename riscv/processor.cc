@@ -19,9 +19,9 @@
 #include <stdexcept>
 #include <algorithm>
 #include "unistd.h"
-#include <reconv_predictor.h>
+#include "riscv_reconv_predictor.h"
 
-static reconv_predictor reconv_pred;
+static riscv_reconv_predictor reconv_pred;
 
 #undef STATE
 #define STATE state
@@ -74,11 +74,11 @@ processor_t::~processor_t() {
 #endif
 
   delete disassembler;
-  std::ofstream rpt_csv ("RPT_Result.csv");
-  rpt_csv << reconv_pred.dump_RPT_result_csv();
+  std::ofstream rpt_csv("RPT_Result.csv");
+  rpt_csv << reconv_pred.m_reconv_predictor.dump_RPT_result_csv();
   rpt_csv.close();
-  std::ofstream bft_csv ("BFT_Result.csv");
-  bft_csv << reconv_pred.dump_BFT_result_csv();
+  std::ofstream bft_csv("BFT_Result.csv");
+  bft_csv << reconv_pred.m_reconv_predictor.dump_BFT_result_csv();
   bft_csv.close();
 }
 
@@ -267,34 +267,7 @@ static reg_t execute_insn(processor_t *p, reg_t pc, insn_fetch_t fetch) {
 
   // BEGIN: RETIRE STAGE LOGIC FOR RECONVERGE PREDICTOR
   if ((p->get_state()->sr & SR_S) == 0) {
-    // only training the reconvergence predictor when executing user mode code
-    auto &retired_insn = fetch.insn;
-    const auto retired_insn_opcode = retired_insn.opcode();
-    const static int reg_RA = 1;
-    const static int reg_ZERO = 0;
-
-    if (retired_insn_opcode == OP_JAL && retired_insn.rd() == reg_RA) {
-      // test for call
-      reconv_pred.on_function_call(pc, npc);
-    } else if (retired_insn_opcode == OP_JALR && retired_insn.rd() == reg_RA) {
-      // test for indirect call
-      reconv_pred.on_function_call(pc, npc);
-    } else if (
-      retired_insn_opcode == OP_JALR &&
-      retired_insn.rs1() == reg_RA && retired_insn.rd() == reg_ZERO
-      ) {
-      // test for return
-      reconv_pred.on_function_return(pc, npc);
-    } else if (retired_insn_opcode == OP_JALR) {
-      // deem all the rest JALR as indirect jump
-      reconv_pred.on_indirect_jmp_retired(pc);
-    } else if (retired_insn_opcode == OP_BRANCH) {
-      // branches' target usually is anything but pc + 4
-      reconv_pred.on_branch_retired(pc, pc + 4 == npc);
-    } else {
-      // all others
-      reconv_pred.on_other_insn_retired(pc);
-    }
+    reconv_pred.on_userspace_insn_retired(fetch.insn, pc, npc);
   }
   // END: RETIRE STAGE LOGIC FOR RECONVERGE PREDICTOR
 
