@@ -48,7 +48,7 @@ set(
         gzstream.cc
         ckpt_desc_reader.cc
         debug_tracer.cc
-        reconv_predictor.cpp
+        reconv_predictor.cc
         ${riscv_gen_srcs}
 )
 
