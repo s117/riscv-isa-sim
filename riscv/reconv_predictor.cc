@@ -425,7 +425,7 @@ BFT::br_stat BFT::get_stat(uint64_t pc) {
     return {};
 }
 
-bool BFT::filter(uint64_t pc) {
+bool BFT::is_filtered(uint64_t pc) {
   static const uint64_t SAMPLE_THRESHOLD = 30;//1; //30; // only stop filtering if we have sampled at least SAMPLE_THRESHOLD,
   static const double BIAS_THRESHOLD = 0.95;//1; //0.95;   // and the the bias rate is lower than this
 
@@ -443,7 +443,7 @@ bool BFT::filter(uint64_t pc) {
   );
 }
 
-void BFT::train(uint64_t pc, bool branch_taken) {
+void BFT::train(uint64_t pc, uint64_t npc, bool branch_taken) {
   if (!m_branches_history.count(pc)) {
     m_branches_history[pc] = {};
   }
@@ -452,17 +452,18 @@ void BFT::train(uint64_t pc, bool branch_taken) {
   else br_history.cnt_ntaken++;
 }
 
-void reconv_predictor::on_branch_retired(uint64_t pc, bool outcome) {
+void reconv_predictor::on_branch_retired(uint64_t pc, uint64_t npc, bool outcome) {
   // feed the BFT, and check whether this branch should be filter
-  m_BFT.train(pc, outcome);
-  if (m_RPT.contains(pc) || !m_BFT.filter(pc))
+  m_RPT.train(pc);
+  m_BFT.train(pc, npc, outcome);
+  if (m_RPT.contains(pc) || !m_BFT.is_filtered(pc))
     // activate the entry, with branch outcome
     m_RPT.activate(pc, outcome);
 }
 
-void reconv_predictor::on_indirect_jmp_retired(uint64_t pc) {
-  // activate the entry without a always taken branch outcome (always taken)
-  m_RPT.activate(pc, true);
+void reconv_predictor::on_indirect_jmp_retired(uint64_t pc, uint64_t npc) {
+  // activate the entry with a always taken branch outcome (always taken)
+  on_branch_retired(pc, npc, true);
 }
 
 void reconv_predictor::on_other_insn_retired(uint64_t pc) {
@@ -534,7 +535,7 @@ std::string reconv_predictor::dump_BFT_result_csv() {
     output_stream << ",";
     output_stream << std::setw(8) << std::setfill(' ') << std::setbase(10) << entry_stat.cnt_ntaken;
     output_stream << ",";
-    output_stream << std::boolalpha << m_BFT.filter(entry_pc);
+    output_stream << std::boolalpha << m_BFT.is_filtered(entry_pc);
     output_stream << std::endl;
   }
 

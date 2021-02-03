@@ -160,9 +160,9 @@ public:
 
   br_stat get_stat(uint64_t pc);
 
-  bool filter(uint64_t pc);
+  bool is_filtered(uint64_t pc);
 
-  void train(uint64_t pc, bool branch_taken);
+  void train(uint64_t pc, uint64_t npc, bool branch_taken);
 
   std::map<uint64_t, br_stat> m_branches_history;
 };
@@ -172,9 +172,9 @@ private:
   BFT m_BFT;
   RPT m_RPT;
 public:
-  void on_branch_retired(uint64_t pc, bool outcome);
+  void on_branch_retired(uint64_t pc, uint64_t npc, bool outcome);
 
-  void on_indirect_jmp_retired(uint64_t pc);
+  void on_indirect_jmp_retired(uint64_t pc, uint64_t npc);
 
   void on_other_insn_retired(uint64_t pc);
 
