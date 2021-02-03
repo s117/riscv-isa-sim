@@ -58,6 +58,7 @@ void RPT_entry::decrease_call_level(uint8_t old_active_bits) {
   restore_status_bits(old_active_bits);
 }
 
+// Active the entry for training
 void RPT_entry::activate_entry(bool br_taken) {
   // Update the AR bit
   if (BelowPotentialActive) {
@@ -82,6 +83,7 @@ void RPT_entry::activate_entry(bool br_taken) {
   ReboundPotentialReached = false;
 }
 
+// Train the three potentials in this entry
 void RPT_entry::train_entry(uint64_t commit_pc) {
   /*
    * When a branch is executed for the first time, initialize the BelowPotential to the sequentially next PC
@@ -130,6 +132,13 @@ void RPT_entry::train_entry(uint64_t commit_pc) {
       update_ReboundPotential(commit_pc);
     }
   }
+}
+
+// Call this function only when you want to terminate the current training
+void RPT_entry::early_deactivate_entry() {
+  BelowPotentialActive = false;
+  AbovePotentialActive = false;
+  ReboundPotentialActive = false;
 }
 
 uint64_t RPT_entry::make_prediction(RPT_entry::prediction_details *prediction_details) const {
@@ -357,6 +366,14 @@ void RPT::activate(uint64_t pc, bool br_taken) {
     m_active_record[m_current_call_depth][pc] = entry_st_bits;
   }
   entry.activate_entry(br_taken);
+}
+
+void RPT::deactivate_all() {
+  for (auto &i : m_active_record[m_current_call_depth]) {
+    const auto pc = i.first;
+    const auto st_bits = i.second;
+    m_RPT_entries[pc].early_deactivate_entry();
+  }
 }
 
 void RPT::train(uint64_t commit_pc) {

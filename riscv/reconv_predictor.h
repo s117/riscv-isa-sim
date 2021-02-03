@@ -84,6 +84,8 @@ public:
 
   void train_entry(uint64_t commit_pc);
 
+  void early_deactivate_entry();
+
   struct prediction_details {
     int reason_id;
     int cat_id;
@@ -135,6 +137,8 @@ public:
   bool contains(uint64_t pc) const;
 
   void activate(uint64_t pc, bool br_taken);
+
+  void deactivate_all();
 
   void train(uint64_t commit_pc);
 
