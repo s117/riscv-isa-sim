@@ -126,8 +126,7 @@ void RPT_entry::train_entry(uint64_t commit_pc) {
       BelowPotentialReached &&
       (BranchPC < commit_pc) &&
       (ReboundPotential.get_potential_pc() < commit_pc) &&
-      (commit_pc < BelowPotential.get_potential_pc()) &&
-      (ReboundPotential.get_potential_pc() < commit_pc)
+      (commit_pc < BelowPotential.get_potential_pc())
       ) {
       update_ReboundPotential(commit_pc);
     }
