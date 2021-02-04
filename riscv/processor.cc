@@ -74,12 +74,7 @@ processor_t::~processor_t() {
 #endif
 
   delete disassembler;
-  std::ofstream rpt_csv("RPT_Result.csv");
-  rpt_csv << reconv_pred.m_reconv_predictor.dump_RPT_result_csv();
-  rpt_csv.close();
-  std::ofstream bft_csv("BFT_Result.csv");
-  bft_csv << reconv_pred.m_reconv_predictor.dump_BFT_result_csv();
-  bft_csv.close();
+  reconv_pred.dump_result();
 }
 
 void state_t::reset() {

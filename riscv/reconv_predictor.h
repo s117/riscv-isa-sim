@@ -13,6 +13,10 @@
 #include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <unordered_map>
+
+#define RECONV_POINT_INVALID (INT64_MAX)
+#define RECONV_POINT_RETURN  (UINT64_MAX-1)
 
 class potential_reconv_point {
 private:
@@ -23,15 +27,15 @@ private:
   bool b_ReachedFirst;
 
 public:
-  static const uint64_t INVALID_POTENTIAL = UINT64_MAX;
+
 
   void set_potential_pc(uint64_t new_pc) { ul_PotentialPC = new_pc; };
 
-  void invalidate_potential_pc() { set_potential_pc(INVALID_POTENTIAL); };
+  void invalidate_potential_pc() { set_potential_pc(RECONV_POINT_INVALID); };
 
   uint64_t get_potential_pc() const { return ul_PotentialPC; };
 
-  bool test_potential_pc_valid() const { return ul_PotentialPC != INVALID_POTENTIAL; };
+  bool test_potential_pc_valid() const { return ul_PotentialPC != RECONV_POINT_INVALID; };
 
   void set_HitReturn() { b_HitReturn = true; };
 
@@ -72,7 +76,8 @@ private:
   potential_reconv_point BelowPotential;
   potential_reconv_point AbovePotential;
   potential_reconv_point ReboundPotential;
-
+  uint64_t CntActivate;
+  uint64_t CntEarlyDeactivate;
 public:
   void initialize(uint64_t br_pc);
 
@@ -85,6 +90,10 @@ public:
   void train_entry(uint64_t commit_pc);
 
   void early_deactivate_entry();
+
+  uint64_t get_activate_cnt() const { return CntActivate; };
+
+  uint64_t get_early_deactivate_cnt() const { return CntEarlyDeactivate; };
 
   struct prediction_details {
     int reason_id;
@@ -147,31 +156,46 @@ public:
   void decrease_call_level();
 
   void reset();
+
+  std::string dump_result();
 };
 
 class BFT {
 public:
   struct br_stat {
-    uint64_t cnt_taken;
-    uint64_t cnt_ntaken;
+    uint64_t total_cnt;
+    uint64_t curr_major_target;
+    uint64_t curr_major_cnt;
 
-    br_stat() : cnt_taken(0), cnt_ntaken(0) {};
+    std::map<uint64_t, uint64_t> cnt_by_br_target;
+
+    br_stat() : total_cnt(0), curr_major_target(0), curr_major_cnt(0) {};
   };
 
-  br_stat get_stat(uint64_t pc);
+  bool m_static_stats = false;
+
+  const BFT::br_stat &get_stat(uint64_t pc);
 
   bool is_filtered(uint64_t pc);
 
+  bool is_uncommon_target(uint64_t pc, uint64_t npc);
+
   void train(uint64_t pc, uint64_t npc, bool branch_taken);
 
+  std::string dump_result();
+
+  bool load_static_stat_from_file(const std::string &filepath);
+
   std::map<uint64_t, br_stat> m_branches_history;
+
+  bool is_static_mode() const { return m_static_stats; };
 };
 
 class reconv_predictor {
-private:
+public:
   BFT m_BFT;
   RPT m_RPT;
-public:
+
   void on_branch_retired(uint64_t pc, uint64_t npc, bool outcome);
 
   void on_indirect_jmp_retired(uint64_t pc, uint64_t npc);
@@ -188,5 +212,25 @@ public:
 
 };
 
+class static_reconv_predictor {
+private:
+  std::map<uint64_t, uint64_t> m_br_reconv_point;
+  bool m_loaded = false;
+
+public:
+  bool contains(uint64_t br_pc) const {
+    return m_br_reconv_point.count(br_pc) != 0;
+  };
+
+  uint64_t predict(uint64_t br_pc) {
+    if (!contains(br_pc))
+      return RECONV_POINT_INVALID;
+    return m_br_reconv_point[br_pc];
+  };
+
+  bool is_loaded() const { return m_loaded; };
+
+  bool load_from_csv(const std::string &filepath);
+};
 
 #endif //RISCV_ISA_SIM_RECONV_PREDICTOR_H

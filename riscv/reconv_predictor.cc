@@ -2,7 +2,40 @@
 // Created by s117 on 1/20/21.
 //
 
+#include <fstream>
+#include <vector>
 #include "reconv_predictor.h"
+
+static std::string &ltrim(std::string &str, const std::string &chars = "\t\n\v\f\r ") {
+  str.erase(0, str.find_first_not_of(chars));
+  return str;
+}
+
+static std::string &rtrim(std::string &str, const std::string &chars = "\t\n\v\f\r ") {
+  str.erase(str.find_last_not_of(chars) + 1);
+  return str;
+}
+
+static std::string &trim(std::string &str, const std::string &chars = "\t\n\v\f\r ") {
+  return ltrim(rtrim(str, chars), chars);
+}
+
+static std::pair<std::string, std::string> rsplit(std::string &s, char p) {
+  auto pos = s.find_last_of(p);
+  auto l = s.substr(0, pos);
+  auto r = s.substr(pos + 1, s.size());
+  return std::make_pair(l, r);
+}
+
+void parseCSVLine(const std::string &line, std::vector<std::string> *output_vec) {
+  std::istringstream line_stream(line);
+  std::string tmp;
+  output_vec->clear();
+
+  while (getline(line_stream, tmp, ',')) {
+    output_vec->push_back(trim(tmp));
+  }
+}
 
 void RPT_entry::initialize(uint64_t br_pc) {
   BranchPC = br_pc;
@@ -13,6 +46,8 @@ void RPT_entry::initialize(uint64_t br_pc) {
   BelowPotentialReached = false;
   AbovePotentialReached = false;
   ReboundPotentialReached = false;
+  CntActivate = 0;
+  CntEarlyDeactivate = 0;
   initialize_BelowPotential();
   initialize_AbovePotential();
   initialize_ReboundPotential();
@@ -81,6 +116,8 @@ void RPT_entry::activate_entry(bool br_taken) {
   BelowPotentialReached = false;
   AbovePotentialReached = false;
   ReboundPotentialReached = false;
+
+  ++CntActivate;
 }
 
 // Train the three potentials in this entry
@@ -138,6 +175,7 @@ void RPT_entry::early_deactivate_entry() {
   BelowPotentialActive = false;
   AbovePotentialActive = false;
   ReboundPotentialActive = false;
+  ++CntEarlyDeactivate;
 }
 
 uint64_t RPT_entry::make_prediction(RPT_entry::prediction_details *prediction_details) const {
@@ -149,7 +187,7 @@ uint64_t RPT_entry::make_prediction(RPT_entry::prediction_details *prediction_de
     if (BelowPotential.test_HitReturn() && AbovePotential.test_HitReturn() && ReboundPotential.test_HitReturn()) {
       // Use invalid PC-1 to represent return address for now
       cat_id = 0;
-      prediction = potential_reconv_point::INVALID_POTENTIAL - 1;
+      prediction = RECONV_POINT_RETURN;
       break;
     }
 
@@ -376,6 +414,8 @@ void RPT::deactivate_all() {
 }
 
 void RPT::train(uint64_t commit_pc) {
+  // TODO: Don't train the entry if a highly bias branch taken to the opposite direction
+  // Discover the nested branch?
   for (auto &i : m_active_record[m_current_call_depth]) {
     const auto entry_pc = i.first;
     m_RPT_entries[entry_pc].train_entry(commit_pc);
@@ -417,24 +457,88 @@ void RPT::reset() {
   }
 }
 
-BFT::br_stat BFT::get_stat(uint64_t pc) {
+std::string RPT::dump_result() {
+  static const char *const cat_name[] = {
+    "Return",
+    "Below",
+    "Above",
+    "Rebound"
+  };
+  static const char *const reason_name[] = {
+    "[0] Unknown",
+    "[1] All hit return",
+    "[2] Reach first",
+    "[3] Always reach whether taken or not taken",
+    "[4] Always reach only taken or not taken",
+    "[5] Fallback to BelowPotential"
+  };
+  std::stringstream output_stream;
+  output_stream << std::left << std::setw(16) << std::setfill(' ') << "BranchPC";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(16) << std::setfill(' ') << "ReconvPoint";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(8) << std::setfill(' ') << "ActCnt";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(8) << std::setfill(' ') << "DeactCnt";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(7) << std::setfill(' ') << "RecCat";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(0) << std::setfill(' ') << "Reason";
+  output_stream << std::endl;
+
+  for (auto &i: m_RPT_entries) {
+    const auto entry_pc = i.first;
+    const auto &entry = i.second;
+    RPT_entry::prediction_details pred_reason = {};
+    const auto reconv_pc = entry.make_prediction(&pred_reason);
+
+    // BranchPC
+    output_stream << std::right << "" << std::setw(16) << std::setfill('0') << std::setbase(16)
+                  << entry_pc;
+    output_stream << ", ";
+    // ReconvPoint
+    output_stream << std::right << "" << std::setw(16) << std::setfill('0') << std::setbase(16)
+                  << reconv_pc;
+    output_stream << ", ";
+    // ActivateCnt
+    output_stream << std::right << std::setw(8) << std::setfill(' ') << std::setbase(10)
+                  << entry.get_activate_cnt();
+    output_stream << ", ";
+    // DeactivateCnt
+    output_stream << std::right << std::setw(8) << std::setfill(' ') << std::setbase(10)
+                  << entry.get_early_deactivate_cnt();
+    output_stream << ", ";
+    // RecCat
+    output_stream << std::left << std::setw(7) << std::setfill(' ')
+                  << cat_name[pred_reason.cat_id];
+    output_stream << ", ";
+    // Reason
+    output_stream << std::right << reason_name[pred_reason.reason_id];
+    output_stream << std::endl;
+  }
+
+  return output_stream.str();
+}
+
+const BFT::br_stat &BFT::get_stat(uint64_t pc) {
+  static const BFT::br_stat null_result = {};
   if (m_branches_history.count(pc))
     return m_branches_history[pc];
   else
-    return {};
+    return null_result;
 }
 
 bool BFT::is_filtered(uint64_t pc) {
-  static const uint64_t SAMPLE_THRESHOLD = 30;//1; //30; // only stop filtering if we have sampled at least SAMPLE_THRESHOLD,
-  static const double BIAS_THRESHOLD = 0.95;//1; //0.95;   // and the the bias rate is lower than this
+  static const uint64_t SAMPLE_THRESHOLD = 30;//1; // only stop filtering if we have sampled at least SAMPLE_THRESHOLD,
+  static const double BIAS_THRESHOLD = 0.95;//1;   // and the the bias rate is lower than this
 
   if (!m_branches_history.count(pc))
     return true; // filter out the pc that never be trained
 
-  br_stat &br_history = m_branches_history[pc];
+  const br_stat &br_history = m_branches_history[pc];
 
-  uint64_t cnt_major = std::max(br_history.cnt_taken, br_history.cnt_ntaken);
-  uint64_t cnt_total = br_history.cnt_taken + br_history.cnt_ntaken;
+  uint64_t cnt_total = br_history.total_cnt;
+  uint64_t cnt_major = br_history.curr_major_cnt;
 
   return !(
     (SAMPLE_THRESHOLD < cnt_total) &&
@@ -443,21 +547,186 @@ bool BFT::is_filtered(uint64_t pc) {
 }
 
 void BFT::train(uint64_t pc, uint64_t npc, bool branch_taken) {
+  // Don't train if the BFT stats are statically m_loaded from a CSV file
+  if (m_static_stats)
+    return;
+
   if (!m_branches_history.count(pc)) {
     m_branches_history[pc] = {};
   }
   br_stat &br_history = m_branches_history[pc];
-  if (branch_taken) br_history.cnt_taken++;
-  else br_history.cnt_ntaken++;
+
+  ++br_history.total_cnt;
+  uint64_t curr_target_cnt = ++br_history.cnt_by_br_target[npc];
+  if (br_history.curr_major_cnt < curr_target_cnt) {
+    br_history.curr_major_cnt = curr_target_cnt;
+    br_history.curr_major_target = npc;
+  }
 }
 
+std::string BFT::dump_result() {
+  std::stringstream output_stream;
+  output_stream << std::left << std::setw(16) << std::setfill(' ') << "BranchPC";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(8) << std::setfill(' ') << "TotalCnt";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(5) << std::setfill(' ') << "BiasRate";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(16) << std::setfill(' ') << "MajorTarget";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(8) << std::setfill(' ') << "MajorCnt";
+  output_stream << ", ";
+  output_stream << std::left << std::setw(0) << std::setfill(' ') << "Details...";
+  output_stream << std::endl;
+
+  for (auto &i: m_branches_history) {
+    const auto entry_pc = i.first;
+    const auto &entry_stat = i.second;
+    // BranchPC
+    output_stream << std::right << "" << std::setw(16) << std::setfill('0') << std::setbase(16)
+                  << entry_pc;
+    output_stream << ", ";
+    // TotalCnt
+    output_stream << std::left << std::setw(8) << std::setfill(' ') << std::setbase(10)
+                  << entry_stat.total_cnt;
+    output_stream << ", ";
+    // BiasRate
+    output_stream << std::right << std::setw(8) << std::setfill(' ') << std::fixed
+                  << std::setprecision(3)
+                  << (float) entry_stat.curr_major_cnt / entry_stat.total_cnt;
+    output_stream << ", ";
+    // MajorTarget
+    output_stream << std::right << "" << std::setw(16) << std::setfill('0') << std::setbase(16)
+                  << entry_stat.curr_major_target;
+    output_stream << ", ";
+    // MajorCnt
+    output_stream << std::right << std::setw(8) << std::setfill(' ') << std::setbase(10)
+                  << entry_stat.curr_major_cnt;
+
+    for (auto &j: entry_stat.cnt_by_br_target) {
+      output_stream << ", ";
+      output_stream << std::right << std::setw(16) << std::setfill('0') << std::setbase(16)
+                    << j.first << ":";
+      output_stream << std::left << std::setw(8) << std::setfill(' ') << std::setbase(10)
+                    << j.second;
+    }
+
+    output_stream << std::endl;
+  }
+
+  return output_stream.str();
+}
+
+bool BFT::load_static_stat_from_file(const std::string &filepath) {
+  std::ifstream stat_file;
+  stat_file.open(filepath, std::ios::in);
+  if (!stat_file.good()) {
+    this->m_static_stats = false;
+    return false;
+  }
+
+  std::string line;
+  std::getline(stat_file, line); // skip over the header line
+  std::vector<std::string> parsed_line;
+  parseCSVLine(line, &parsed_line);
+  assert(parsed_line.size() == 6);
+  assert(parsed_line[0] == "BranchPC");
+  assert(parsed_line[1] == "TotalCnt");
+  assert(parsed_line[2] == "BiasRate");
+  assert(parsed_line[3] == "MajorTarget");
+  assert(parsed_line[4] == "MajorCnt");
+  assert(parsed_line[5] == "Details...");
+  m_branches_history.clear();
+  while (stat_file.good()) {
+    std::getline(stat_file, line);
+    if (trim(line).empty())
+      break;
+    parseCSVLine(line, &parsed_line);
+    assert(parsed_line.size() >= 6);
+    uint64_t branch_pc = std::stoull(parsed_line[0], nullptr, 16);
+    uint64_t total_cnt = std::stoull(parsed_line[1]);
+    uint64_t major_target = std::stoull(parsed_line[3], nullptr, 16);
+    uint64_t major_cnt = std::stoull(parsed_line[4]);
+    uint64_t calc_total = 0;
+    assert(!m_branches_history.count(branch_pc));
+    m_branches_history[branch_pc] = {};
+    auto &entry_stat = m_branches_history[branch_pc];
+    entry_stat.total_cnt = total_cnt;
+    entry_stat.curr_major_target = major_target;
+    entry_stat.curr_major_cnt = major_cnt;
+    for (size_t i = 5; i < parsed_line.size(); i++) {
+      auto lr_pair = rsplit(parsed_line[i], ':');
+      uint64_t target_pc = std::stoull(lr_pair.first, nullptr, 16);
+      uint64_t target_cnt = std::stoull(lr_pair.second);
+      calc_total += target_cnt;
+      assert(target_cnt <= major_cnt);
+      assert(!entry_stat.cnt_by_br_target.count(target_pc));
+      entry_stat.cnt_by_br_target[target_pc] = target_cnt;
+    }
+    assert(calc_total == total_cnt);
+  }
+  this->m_static_stats = true;
+  return true;
+}
+
+bool BFT::is_uncommon_target(uint64_t pc, uint64_t npc) {
+  if (!m_static_stats) {
+    // for now, let's only enable this if the BFT is working in static mode (stats are m_loaded from a CSV)
+    return false;
+  }
+
+  // if the sample of branch is less than this number, all it's target will be deem as uncommon, as the branch itself
+  // is uncommon
+  static const uint64_t SAMPLE_THRESHOLD = 30;
+  // if branch must has a bias rate lower than this, any path will be deem as common path
+  static const double UNCOMMON_THRESHOLD = 0.95;
+
+  if (!m_branches_history.count(pc)) {
+    if (m_static_stats) {
+      std::stringstream ss;
+      ss << std::hex << pc;
+      throw std::runtime_error("The m_loaded BFT doesn't contains stats for branch PC=" + ss.str());
+    }
+    // If the BFT is being trained on the fly, conservatively deem any target of a not seen branch to be uncommon
+    // in this way we are trading some potential training opportunity for a better (the most frequent) reconv point
+    // however this shouldn't be reached for now, as we don't allow such configuration
+    assert(0);
+    return true;
+  }
+
+  const br_stat &br_history = m_branches_history[pc];
+
+  uint64_t cnt_total = br_history.total_cnt;
+  uint64_t cnt_major = br_history.curr_major_cnt;
+
+  if (cnt_total < SAMPLE_THRESHOLD) {
+    // If the BranchPC is less frequently seen, the current path itself is a less frequent path
+    // so deem any target on it as less frequent target
+    return true;
+  }
+
+  double biased_rate = ((double) cnt_major / cnt_total);
+  if (UNCOMMON_THRESHOLD <= biased_rate) {
+    // As this is a highly biased branch, we can know the target's commonality by comparing npc with it's major target
+    return npc != br_history.curr_major_target;
+  } else {
+    // If this branch is not highly biased, we just simple think any path is common for now
+    return false;
+  }
+}
+
+
 void reconv_predictor::on_branch_retired(uint64_t pc, uint64_t npc, bool outcome) {
-  // feed the BFT, and check whether this branch should be filter
-  m_RPT.train(pc);
   m_BFT.train(pc, npc, outcome);
-  if (m_RPT.contains(pc) || !m_BFT.is_filtered(pc))
-    // activate the entry, with branch outcome
-    m_RPT.activate(pc, outcome);
+  if (m_BFT.is_uncommon_target(pc, npc)) {
+    // if we are going to get on an uncommon path, don't let it mess up our most frequently reconv point estimation
+    m_RPT.deactivate_all();
+  } else {
+    m_RPT.train(pc);
+    if (m_RPT.contains(pc) || !m_BFT.is_filtered(pc))
+      // activate the entry, with branch outcome
+      m_RPT.activate(pc, outcome);
+  }
 }
 
 void reconv_predictor::on_indirect_jmp_retired(uint64_t pc, uint64_t npc) {
@@ -481,62 +750,42 @@ void reconv_predictor::on_function_return(uint64_t pc, uint64_t return_addr) {
 }
 
 std::string reconv_predictor::dump_RPT_result_csv() {
-  static const char *const cat_name[] = {
-    "Return",
-    "Below",
-    "Above",
-    "Rebound"
-  };
-  static const char *const reason_name[] = {
-    "[0] Unknown",
-    "[1] All hit return",
-    "[2] Reach first",
-    "[3] Always reach whether taken or not taken",
-    "[4] Always reach only taken or not taken",
-    "[5] Fallback to BelowPotential"
-  };
-  std::stringstream output_stream;
-  output_stream << "Branch,ReconvPoint,TakenCnt,NTakenCnt,RecCat,Reason" << std::endl;
-  for (auto &i: m_RPT.m_RPT_entries) {
-    const auto entry_pc = i.first;
-    const auto &entry = i.second;
-    const auto entry_stat = m_BFT.get_stat(entry_pc);
-    RPT_entry::prediction_details pred_reason = {};
-    const auto reconv_pc = entry.make_prediction(&pred_reason);
-
-
-    output_stream << "0x" << std::setw(16) << std::setfill('0') << std::setbase(16) << entry_pc;
-    output_stream << ",";
-    output_stream << "0x" << std::setw(16) << std::setfill('0') << std::setbase(16) << reconv_pc;
-    output_stream << ",";
-    output_stream << std::setw(8) << std::setfill(' ') << std::setbase(10) << entry_stat.cnt_taken;
-    output_stream << ",";
-    output_stream << std::setw(8) << std::setfill(' ') << std::setbase(10) << entry_stat.cnt_ntaken;
-    output_stream << ",";
-    output_stream << std::setw(8) << std::setfill(' ') << cat_name[pred_reason.cat_id];
-    output_stream << ",";
-    output_stream << reason_name[pred_reason.reason_id];
-    output_stream << std::endl;
-  }
-
-  return output_stream.str();
+  return m_RPT.dump_result();
 }
 
 std::string reconv_predictor::dump_BFT_result_csv() {
-  std::stringstream output_stream;
-  output_stream << "Branch,TakenCnt,NTakenCnt,Filtered" << std::endl;
-  for (auto &i: m_BFT.m_branches_history) {
-    const auto entry_pc = i.first;
-    const auto &entry_stat = m_BFT.get_stat(entry_pc);
-    output_stream << "0x" << std::setw(16) << std::setfill('0') << std::setbase(16) << entry_pc;
-    output_stream << ",";
-    output_stream << std::setw(8) << std::setfill(' ') << std::setbase(10) << entry_stat.cnt_taken;
-    output_stream << ",";
-    output_stream << std::setw(8) << std::setfill(' ') << std::setbase(10) << entry_stat.cnt_ntaken;
-    output_stream << ",";
-    output_stream << std::boolalpha << m_BFT.is_filtered(entry_pc);
-    output_stream << std::endl;
+  return m_BFT.dump_result();
+}
+
+bool static_reconv_predictor::load_from_csv(const std::string &filepath) {
+  std::ifstream stat_file;
+  stat_file.open(filepath, std::ios::in);
+  if (!stat_file.good()) {
+    return false;
   }
 
-  return output_stream.str();
+  std::string line;
+  std::getline(stat_file, line); // skip over the header line
+  std::vector<std::string> parsed_line;
+  parseCSVLine(line, &parsed_line);
+  assert(parsed_line.size() == 6);
+  assert(parsed_line[0] == "BranchPC");
+  assert(parsed_line[1] == "ReconvPoint");
+  assert(parsed_line[2] == "ActCnt");
+  assert(parsed_line[3] == "DeactCnt");
+  assert(parsed_line[4] == "RecCat");
+  assert(parsed_line[5] == "Reason");
+  m_br_reconv_point.clear();
+  while (stat_file.good()) {
+    std::getline(stat_file, line);
+    if (trim(line).empty())
+      break;
+    parseCSVLine(line, &parsed_line);
+    assert(parsed_line.size() == 6);
+    uint64_t branch_pc = std::stoull(parsed_line[0], nullptr, 16);
+    uint64_t reconv_point = std::stoull(parsed_line[1], nullptr, 16);
+    m_br_reconv_point[branch_pc] = reconv_point;
+  }
+  m_loaded = true;
+  return true;
 }
