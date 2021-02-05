@@ -28,6 +28,7 @@ set(
         pc_freqvec_tracker.h
         reconv_predictor.h
         riscv_reconv_predictor.h
+        insn_dep_tracker.h
         ${riscv_gen_hdrs}
 )
 
@@ -50,6 +51,7 @@ set(
         ckpt_desc_reader.cc
         debug_tracer.cc
         reconv_predictor.cc
+        insn_dep_tracker.cc
         ${riscv_gen_srcs}
 )
 
