@@ -89,6 +89,37 @@ public:
   }
 };
 
+class reg_poisoning_tracker {
+  typedef uint64_t inst_addr_t;
+  typedef std::set<inst_addr_t> producer_pc_set_t;
+private:
+  std::vector<producer_pc_set_t> m_reg_producer_set;
+public:
+  explicit reg_poisoning_tracker(size_t n_reg) {
+    m_reg_producer_set.resize(n_reg);
+    for (auto &m : m_reg_producer_set) {
+      m.clear();
+    }
+  }
+
+  void clean(size_t reg_no) {
+    m_reg_producer_set[reg_no].clear();
+  }
+
+  void poisoning(size_t reg_no, const std::set<inst_addr_t> &producer_pc_set) {
+    m_reg_producer_set[reg_no] = producer_pc_set;
+  }
+
+  std::set<inst_addr_t> query_producer(size_t reg_no) {
+    return m_reg_producer_set[reg_no];
+  }
+
+  bool is_poisoned(size_t reg_no) {
+    return !m_reg_producer_set[reg_no].empty();
+  }
+
+};
+
 class insn_dep_tracker {
 public:
   void enter_poisoning_mode();
