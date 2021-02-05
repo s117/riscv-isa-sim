@@ -46,7 +46,7 @@ public:
   #define load_func(type) \
     type##_t load_##type(reg_t addr) __attribute__((always_inline)) { \
       if (likely(insn_tracer != nullptr)) \
-        insn_tracer->trace_before_dc_translate(addr, false); \
+        insn_tracer->trace_before_dc_translate(addr, sizeof(type##_t), false); \
       void* paddr = translate(addr, sizeof(type##_t), false, false); \
       auto load_val = *(type##_t*)paddr; \
       if (likely(insn_tracer != nullptr)) \
@@ -58,7 +58,7 @@ public:
   #define store_func(type) \
     void store_##type(reg_t addr, type##_t val) { \
       if (likely(insn_tracer != nullptr)) \
-        insn_tracer->trace_before_dc_translate(addr, true); \
+        insn_tracer->trace_before_dc_translate(addr, sizeof(type##_t), true); \
       void* paddr = translate(addr, sizeof(type##_t), true, false); \
       *(type##_t*)paddr = val; \
       if (likely(insn_tracer != nullptr)) \

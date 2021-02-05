@@ -137,7 +137,7 @@ public:
 
   void trace_after_fpr_access(size_t rn, freg_t val, operand_t operand);
 
-  void trace_before_dc_translate(reg_t vaddr, bool write);
+  void trace_before_dc_translate(reg_t vaddr, size_t size, bool write);
 
   void trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write);
 

@@ -159,13 +159,14 @@ void debug_tracer_t::trace_after_fpr_access(size_t rn, freg_t val, operand_t ope
   }
 }
 
-void debug_tracer_t::trace_before_dc_translate(reg_t vaddr, bool write) {
+void debug_tracer_t::trace_before_dc_translate(reg_t vaddr, size_t size, bool write) {
   if (!m_enabled)
     return;
 
   assert(m_rec_insn.valid && m_rec_insn.good);
 
   m_rec_insn.mem_rec.vaddr = vaddr;
+  m_rec_insn.mem_rec.op_size = size;
   m_rec_insn.mem_rec.write = write;
   m_rec_insn.mem_rec.valid = true;
 }
@@ -179,12 +180,12 @@ void debug_tracer_t::trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val,
     m_rec_insn.good &&
     m_rec_insn.mem_rec.valid &&
     m_rec_insn.mem_rec.vaddr == vaddr &&
-    m_rec_insn.mem_rec.write == write
+    m_rec_insn.mem_rec.write == write &&
+    m_rec_insn.mem_rec.op_size == size
   );
 
   m_rec_insn.mem_rec.val = val;
   m_rec_insn.mem_rec.paddr = paddr;
-  m_rec_insn.mem_rec.op_size = size;
 }
 
 
