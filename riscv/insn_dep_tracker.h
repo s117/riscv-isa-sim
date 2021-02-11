@@ -132,13 +132,13 @@ public:
 
 
 class insn_poisoning_tracker {
-private:
+public:
   enum tracking_mode_t {
     POISONING,
     PROPAGATE,
     STOP
   } m_tracking_mode;
-
+private:
   static const int N_INT_REG = 32;
   static const int N_FP_REG = 32;
 
@@ -176,6 +176,8 @@ public:
         break;
     }
   };
+
+  tracking_mode_t get_tracking_mode() { return m_tracking_mode; };
 
   void enter_poisoning_mode() { m_tracking_mode = POISONING; };
 
