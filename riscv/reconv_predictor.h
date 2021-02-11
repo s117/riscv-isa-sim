@@ -145,6 +145,8 @@ public:
 
   bool contains(uint64_t pc) const;
 
+  uint64_t predict(uint64_t pc) const;
+
   void activate(uint64_t pc, bool br_taken);
 
   void deactivate_all();
@@ -193,6 +195,13 @@ public:
 
 class reconv_predictor {
 public:
+  virtual bool contains(uint64_t br_pc) const = 0;
+
+  virtual uint64_t predict(uint64_t br_pc) const = 0;
+};
+
+class dynamic_reconv_predictor : public reconv_predictor {
+public:
   BFT m_BFT;
   RPT m_RPT;
 
@@ -210,23 +219,21 @@ public:
 
   std::string dump_BFT_result_csv();
 
+  bool contains(uint64_t br_pc) const override;
+
+  uint64_t predict(uint64_t br_pc) const override;
+
 };
 
-class static_reconv_predictor {
+class static_reconv_predictor : public reconv_predictor {
 private:
   std::map<uint64_t, uint64_t> m_br_reconv_point;
   bool m_loaded = false;
 
 public:
-  bool contains(uint64_t br_pc) const {
-    return m_br_reconv_point.count(br_pc) != 0;
-  };
+  bool contains(uint64_t br_pc) const override;
 
-  uint64_t predict(uint64_t br_pc) {
-    if (!contains(br_pc))
-      return RECONV_POINT_INVALID;
-    return m_br_reconv_point[br_pc];
-  };
+  uint64_t predict(uint64_t br_pc) const override;
 
   bool is_loaded() const { return m_loaded; };
 

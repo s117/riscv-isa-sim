@@ -15,7 +15,7 @@
 class riscv_reconv_predictor {
 public:
 
-  reconv_predictor m_reconv_predictor;
+  dynamic_reconv_predictor m_reconv_predictor;
   bool m_training_rpt = false;
   bool m_use_static_bft = false;
 

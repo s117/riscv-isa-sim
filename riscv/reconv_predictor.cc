@@ -389,7 +389,16 @@ RPT::RPT() {
 }
 
 bool RPT::contains(uint64_t pc) const {
-  return m_RPT_entries.count(pc);
+  return m_RPT_entries.count(pc) != 0;
+}
+
+uint64_t RPT::predict(uint64_t pc) const {
+  if (!contains(pc))
+    return RECONV_POINT_INVALID;
+
+  const auto &entry = m_RPT_entries.at(pc);
+  RPT_entry::prediction_details pred_reason = {};
+  return entry.make_prediction(&pred_reason);
 }
 
 void RPT::activate(uint64_t pc, bool br_taken) {
@@ -716,45 +725,64 @@ bool BFT::is_uncommon_target(uint64_t pc, uint64_t npc) {
 }
 
 
-void reconv_predictor::on_branch_retired(uint64_t pc, uint64_t npc, bool outcome) {
+void dynamic_reconv_predictor::on_branch_retired(uint64_t pc, uint64_t npc, bool outcome) {
   m_BFT.train(pc, npc, outcome);
   if (m_BFT.is_uncommon_target(pc, npc)) {
     // if we are going to get on an uncommon path, don't let it mess up our most frequently reconv point estimation
     m_RPT.deactivate_all();
   } else {
     m_RPT.train(pc);
-    if (m_RPT.contains(pc) || !m_BFT.is_filtered(pc))
+    if (m_BFT.is_static_mode() || m_RPT.contains(pc) || !m_BFT.is_filtered(pc))
+      // In static mode, we train the reconv PC for all branch
       // activate the entry, with branch outcome
       m_RPT.activate(pc, outcome);
   }
 }
 
-void reconv_predictor::on_indirect_jmp_retired(uint64_t pc, uint64_t npc) {
+void dynamic_reconv_predictor::on_indirect_jmp_retired(uint64_t pc, uint64_t npc) {
   // activate the entry with a always taken branch outcome (always taken)
   on_branch_retired(pc, npc, true);
 }
 
-void reconv_predictor::on_other_insn_retired(uint64_t pc) {
+void dynamic_reconv_predictor::on_other_insn_retired(uint64_t pc) {
   // train the entry
   m_RPT.train(pc);
 }
 
-void reconv_predictor::on_function_call(uint64_t pc, uint64_t target_addr) {
+void dynamic_reconv_predictor::on_function_call(uint64_t pc, uint64_t target_addr) {
   // increase the call level
   m_RPT.increase_call_level();
 }
 
-void reconv_predictor::on_function_return(uint64_t pc, uint64_t return_addr) {
+void dynamic_reconv_predictor::on_function_return(uint64_t pc, uint64_t return_addr) {
   // decrease the call level
   m_RPT.decrease_call_level();
 }
 
-std::string reconv_predictor::dump_RPT_result_csv() {
+std::string dynamic_reconv_predictor::dump_RPT_result_csv() {
   return m_RPT.dump_result();
 }
 
-std::string reconv_predictor::dump_BFT_result_csv() {
+std::string dynamic_reconv_predictor::dump_BFT_result_csv() {
   return m_BFT.dump_result();
+}
+
+bool dynamic_reconv_predictor::contains(uint64_t br_pc) const {
+  return m_RPT.contains(br_pc);
+}
+
+uint64_t dynamic_reconv_predictor::predict(uint64_t br_pc) const {
+  return m_RPT.predict(br_pc);
+}
+
+bool static_reconv_predictor::contains(uint64_t br_pc) const {
+  return m_br_reconv_point.count(br_pc) != 0;
+}
+
+uint64_t static_reconv_predictor::predict(uint64_t br_pc) const {
+  if (!contains(br_pc))
+    return RECONV_POINT_INVALID;
+  return m_br_reconv_point.at(br_pc);
 }
 
 bool static_reconv_predictor::load_from_csv(const std::string &filepath) {
