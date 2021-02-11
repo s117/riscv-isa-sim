@@ -11,13 +11,13 @@
 #include "debug_tracer.h"
 
 typedef uint64_t data_addr_t;
-typedef uint64_t inst_addr_t;
+typedef uint64_t insn_addr_t;
 typedef size_t access_size_t;
 
 class mem_poisoning_tracker {
 public:
   struct node_stat_t {
-    std::set<inst_addr_t> producer_pc_set;
+    std::set<insn_addr_t> producer_pc_set;
     size_t ref_cnt;
   };
 
@@ -57,7 +57,7 @@ public:
     }
   }
 
-  void poisoning(data_addr_t addr, access_size_t size, const std::set<inst_addr_t> &producer_pc_set) {
+  void poisoning(data_addr_t addr, access_size_t size, const std::set<insn_addr_t> &producer_pc_set) {
     clean(addr, size);
     auto new_node_ptr = mem_node_alloc(size);
     new_node_ptr->producer_pc_set = producer_pc_set;
@@ -66,8 +66,8 @@ public:
     }
   };
 
-  std::set<inst_addr_t> query_producer(data_addr_t addr, access_size_t size) {
-    std::set<inst_addr_t> producer_set;
+  std::set<insn_addr_t> query_producer(data_addr_t addr, access_size_t size) {
+    std::set<insn_addr_t> producer_set;
     node_stat_t *last_stat = nullptr;
     for (
       auto dmem_meta = m_mem_dep_tracker.lower_bound(addr);
@@ -91,7 +91,7 @@ public:
 };
 
 class reg_poisoning_tracker {
-  typedef std::set<inst_addr_t> producer_pc_set_t;
+  typedef std::set<insn_addr_t> producer_pc_set_t;
 private:
   std::vector<producer_pc_set_t> m_reg_producer_set;
 public:
@@ -106,11 +106,11 @@ public:
     m_reg_producer_set[reg_no].clear();
   }
 
-  void poisoning(size_t reg_no, const std::set<inst_addr_t> &producer_pc_set) {
+  void poisoning(size_t reg_no, const std::set<insn_addr_t> &producer_pc_set) {
     m_reg_producer_set[reg_no] = producer_pc_set;
   }
 
-  std::set<inst_addr_t> query_producer(size_t reg_no) {
+  std::set<insn_addr_t> query_producer(size_t reg_no) {
     return m_reg_producer_set[reg_no];
   }
 
@@ -187,8 +187,8 @@ public:
     return false;
   }
 
-  std::set<inst_addr_t> get_insn_src_producer_set(const insn_record_t &insn) {
-    std::set<inst_addr_t> producer_set;
+  std::set<insn_addr_t> get_insn_src_producer_set(const insn_record_t &insn) {
+    std::set<insn_addr_t> producer_set;
     for (const auto &rs_rec : insn.rs_rec) {
       if (rs_rec.valid) {
         size_t reg_offset = rs_rec.fpr ? N_INT_REG : 0;
@@ -204,7 +204,7 @@ public:
     return producer_set;
   }
 
-  void set_insn_dst_producer_set(const insn_record_t &insn, const std::set<inst_addr_t> &insn_src_producer_set) {
+  void set_insn_dst_producer_set(const insn_record_t &insn, const std::set<insn_addr_t> &insn_src_producer_set) {
     for (const auto &rd_rec : insn.rd_rec) {
       if (rd_rec.valid) {
         size_t reg_offset = rd_rec.fpr ? N_INT_REG : 0;
