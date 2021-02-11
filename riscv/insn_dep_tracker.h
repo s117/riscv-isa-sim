@@ -88,6 +88,11 @@ public:
     auto dmem_meta = m_mem_dep_tracker.lower_bound(addr);
     return dmem_meta != m_mem_dep_tracker.end() && dmem_meta->first < addr + size;
   }
+
+  void reset() {
+    m_mem_dep_tracker.clear();
+    m_node_stat_storage.clear();
+  }
 };
 
 class reg_poisoning_tracker {
@@ -116,6 +121,12 @@ public:
 
   bool is_poisoned(size_t reg_no) {
     return !m_reg_producer_set[reg_no].empty();
+  }
+
+  void reset() {
+    for (auto &m : m_reg_producer_set) {
+      m.clear();
+    }
   }
 };
 
@@ -214,6 +225,11 @@ public:
     if (insn.mem_rec.valid && insn.mem_rec.write) {
       m_mem_tracker.poisoning(insn.mem_rec.vaddr, insn.mem_rec.op_size, insn_src_producer_set);
     }
+  }
+
+  void reset() {
+    m_mem_tracker.reset();
+    m_regs_tracker.reset();
   }
 };
 
