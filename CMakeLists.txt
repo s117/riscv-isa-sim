@@ -1,9 +1,14 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 2.8)
 
 project(riscv-isa-sim)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_EXTENSIONS OFF)
+if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    set(CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+else ()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+endif ()
+
 add_compile_options(-Wall -Wno-unused)
 
 # When calling the configure script of isa-sim and fesvr, this path is used as:

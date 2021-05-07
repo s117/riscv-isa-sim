@@ -1,7 +1,10 @@
 # RISCV
-find_package(ZLIB)
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    find_package(ZLIB)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+endif ()
+
 
 include(./generating_rules.cmake)
 
@@ -62,9 +65,17 @@ target_include_directories(riscv PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(riscv ac_config)
 target_link_libraries(riscv ${CMAKE_DL_LIBS})
-target_link_libraries(riscv ZLIB::ZLIB)
-target_link_libraries(riscv Threads::Threads)
 target_link_libraries(riscv fesvr-static)
 target_link_libraries(riscv softfloat)
+
+
+if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    target_link_libraries(riscv ZLIB::ZLIB)
+    target_link_libraries(riscv Threads::Threads)
+else ()
+    target_link_libraries(riscv z)
+    target_link_libraries(riscv pthread)
+endif ()
+
 
 #target_compile_options(riscv PRIVATE "-fPIC")
