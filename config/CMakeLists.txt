@@ -29,6 +29,16 @@ set(
         ../spike_main/spike_main.mk.in
 )
 
+get_target_property(lib_fesvr_path fesvr-lib-dir FESVR_LIB_DIR)
+
+set(
+        ISA_SIM_AC_CONFIGURE_ARGS
+        --prefix=${AC_CONFIGURE_PREFIX}
+        --with-fesvr=${lib_fesvr_path}
+        --enable-simpoint
+        --enable-dbg-trace
+)
+
 add_custom_command(
         OUTPUT ${ac_configure_gen_file_list}
         COMMAND ${PROJECT_SOURCE_DIR}/configure
@@ -54,3 +64,5 @@ target_compile_definitions(
         ac_config
         PUBLIC PREFIX="${AC_CONFIGURE_PREFIX}"
 )
+
+add_dependencies(ac_config fesvr-lib-dir)
