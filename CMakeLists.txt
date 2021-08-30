@@ -12,9 +12,12 @@ endif ()
 add_compile_options(-Wall -Wno-unused)
 
 # When calling the configure script of isa-sim and fesvr, this path is used as:
-#     configure --prefix=${AC_CONFIGURE_PREFIX} ...
-if (NOT DEFINED AC_CONFIGURE_PREFIX)
-    set(AC_CONFIGURE_PREFIX ${PROJECT_SOURCE_DIR}/../install-linux)
+#     configure --prefix=${PREFIX} ...
+if (NOT DEFINED PREFIX)
+    set(PREFIX ${PROJECT_SOURCE_DIR}/../install-linux)
+    message(WARNING "PREFIX is not defined, use default: ${PROJECT_SOURCE_DIR}/../install-linux")
+else()
+    message("PREFIX is set to: ${PREFIX}")
 endif ()
 
 

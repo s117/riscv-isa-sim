@@ -33,7 +33,7 @@ get_target_property(lib_fesvr_path fesvr-lib-dir FESVR_LIB_DIR)
 
 set(
         ISA_SIM_AC_CONFIGURE_ARGS
-        --prefix=${AC_CONFIGURE_PREFIX}
+        --prefix=${PREFIX}
         --with-fesvr=${lib_fesvr_path}
         --enable-simpoint
         --enable-dbg-trace
@@ -62,7 +62,7 @@ target_include_directories(ac_config PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
 target_compile_definitions(
         ac_config
-        PUBLIC PREFIX="${AC_CONFIGURE_PREFIX}"
+        PUBLIC PREFIX="${PREFIX}"
 )
 
 add_dependencies(ac_config fesvr-lib-dir)
