@@ -35,9 +35,25 @@ set(
         ISA_SIM_AC_CONFIGURE_ARGS
         --prefix=${PREFIX}
         --with-fesvr=${lib_fesvr_path}
-        --enable-simpoint
-        --enable-dbg-trace
 )
+
+if(DEFINED ENABLE_SIMPOINT)
+        set(
+                ISA_SIM_AC_CONFIGURE_ARGS
+                ${ISA_SIM_AC_CONFIGURE_ARGS}
+                --enable-simpoint
+        )
+        message("SimPoint BBV collecting support is enabled.")
+endif()
+
+if (DEFINED ENABLE_DBG_TRACE)
+        set(
+                ISA_SIM_AC_CONFIGURE_ARGS
+                ${ISA_SIM_AC_CONFIGURE_ARGS}
+                --enable-dbg-trace
+        )
+        message("Instruction tracing support is enabled.")
+endif()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir)
 
