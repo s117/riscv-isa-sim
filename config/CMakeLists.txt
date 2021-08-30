@@ -1,14 +1,14 @@
 set(
         ac_configure_gen_file_list
-        config.h
-        config.log
-        config.status
-        dummy_rocc.mk
-        hwacha.mk
-        riscv.mk
-        softfloat.mk
-        spike_main.mk
-        Makefile
+        ac_output_dir/config.h
+        ac_output_dir/config.log
+        ac_output_dir/config.status
+        ac_output_dir/dummy_rocc.mk
+        ac_output_dir/hwacha.mk
+        ac_output_dir/riscv.mk
+        ac_output_dir/softfloat.mk
+        ac_output_dir/spike_main.mk
+        ac_output_dir/Makefile
 )
 
 set(
@@ -39,10 +39,13 @@ set(
         --enable-dbg-trace
 )
 
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir)
+
 add_custom_command(
         OUTPUT ${ac_configure_gen_file_list}
         COMMAND ${PROJECT_SOURCE_DIR}/configure
         ARGS ${ISA_SIM_AC_CONFIGURE_ARGS}
+        WORKING_DIRECTORY ac_output_dir
         DEPENDS ${ac_configure_proj_def}
 )
 
@@ -54,11 +57,11 @@ add_custom_command(
 
 add_library(
         ac_config STATIC
-        config.h
+        ac_output_dir/config.h
         dummy.cc
 )
 
-target_include_directories(ac_config PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(ac_config PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir)
 
 target_compile_definitions(
         ac_config
