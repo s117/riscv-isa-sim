@@ -237,6 +237,10 @@ bool sim_t::create_checkpoint(std::string checkpoint_file)
   fprintf(stderr,"Checkpointed register state\n");
   fflush(0);
 
+  if (!proc_chkpt.good()) {
+    std::cerr << "Fail to create the checkpoint: bad output stream state" << std::endl;
+    exit(-1);
+  }
   proc_chkpt.close();
   std::cerr << "Created processor checkpoint to " << checkpoint_file << std::endl;
   return htif_return;
