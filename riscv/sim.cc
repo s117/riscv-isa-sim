@@ -225,17 +225,15 @@ bool sim_t::create_checkpoint(std::string checkpoint_file)
     std::cerr << "ERROR: Opening file `" << checkpoint_file << "' failed.\n";
     exit(0);
   }
+
+  std::cerr << "Checkpointing HTIF state..." << std::endl;
   htif->output_checkpointing(proc_chkpt);
-  fprintf(stderr,"Checkpointed HTIF state\n");
-  fflush(0);
 
+  std::cerr << "Checkpointing memory state" << std::endl;
   create_memory_checkpoint(proc_chkpt);
-  fprintf(stderr,"Checkpointed memory state\n");
-  fflush(0);
 
+  std::cerr << "Checkpointing register state" << std::endl;
   create_register_checkpoint(proc_chkpt);
-  fprintf(stderr,"Checkpointed register state\n");
-  fflush(0);
 
   if (!proc_chkpt.good()) {
     std::cerr << "Fail to create the checkpoint: bad output stream state" << std::endl;
@@ -255,23 +253,25 @@ bool sim_t::restore_checkpoint(std::string restore_file)
     restore_file = restore_file+".gz";
   }
 
-  //std::cerr << "Trying to restore HTIF checkpoint from " << restore_file << std::endl;
-  fflush(0);
   restore_chkpt.open (restore_file.c_str(), std::ios::in | std::ios::binary);
   if ( ! proc_chkpt.good()) {
     std::cerr << "ERROR: Opening file `" << restore_file << "' failed.\n";
 	  return false;
   }
 
+  std::cerr << "Trying to restore HTIF state from " << restore_file << std::endl;
   // This tick will restore the checkpoint.
-	htif_return = htif->restore_checkpoint(restore_chkpt);
-  std::cerr << "Done restoring HTIF checkpoint from " << restore_file << std::endl;
+  htif_return = htif->restore_checkpoint(restore_chkpt);
+  std::cerr << "Done restoring HTIF state" << std::endl;
 
-  //std::cerr << "Trying to restore mem/reg HTIF checkpoint from " << restore_file << std::endl;
+  std::cerr << "Trying to restore memory from " << restore_file << std::endl;
   restore_memory_checkpoint(restore_chkpt);
+  std::cerr << "Done restoring memory" << std::endl;
+
+  std::cerr << "Trying to restore registers from " << restore_file << std::endl;
   restore_proc_checkpoint(restore_chkpt);
   restore_chkpt.close();
-  std::cerr << "Done restoring mem/reg checkpoint from " << restore_file << std::endl;
+  std::cerr << "Done restoring registers" << std::endl;
 
   return htif_return;
 }
