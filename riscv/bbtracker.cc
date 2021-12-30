@@ -26,6 +26,9 @@ bb_tracker_t::~bb_tracker_t() {
       curr = tmp;
     };
   }
+  if (!bbtrace.good()) {
+    std::cerr << "Fail to dump the BBV for simpoint: bad output stream state" << std::endl;
+  }
   bbtrace.close();
 }
 
