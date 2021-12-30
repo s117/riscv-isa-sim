@@ -31,6 +31,7 @@ class pc_freqvec_tracker_t {
 private:
   FREQ_VEC_ELEMENT_T freqvec[FREQ_VEC_SIZE] = {0};
   FREQ_VEC_ELEMENT_T insn_in_vec = 0;
+  bool enabled = false;
   ogzstream freqvec_out;
 
   void reset_vec() {
@@ -42,11 +43,17 @@ public:
   pc_freqvec_tracker_t() = default;
 
   ~pc_freqvec_tracker_t() {
-    if (insn_in_vec) finish_vec();
-    freqvec_out.close();
+    if (enabled) {
+      if (insn_in_vec) finish_vec();
+      if (!freqvec_out.good()) {
+        std::cerr << "Fail to dump the PC frequency vector: bad output stream state" << std::endl;
+      }
+      freqvec_out.close();
+    }
   };
 
   void init_pc_freqvec_tracker(const char *dir_name, const char *out_name) {
+    enabled = true;
     reset_vec();
 
     std::string finalname = std::string(dir_name) + "/" + out_name + ".pcfreq.gz";
@@ -58,17 +65,21 @@ public:
   }
 
   void update_vec(uint64_t pc) {
-    ++insn_in_vec;
-    ++freqvec[GET_FREQ_VEC_POS_BY_PC(pc)];
+    if (enabled) {
+      ++insn_in_vec;
+      ++freqvec[GET_FREQ_VEC_POS_BY_PC(pc)];
+    }
   };
 
   void finish_vec() {
-    freqvec_out << insn_in_vec << " : ";
-    for (auto &i: freqvec) {
-      freqvec_out << i << " ";
-    }
-    freqvec_out << std::endl;
+    if (enabled) {
+      freqvec_out << insn_in_vec << " : ";
+      for (auto &i: freqvec) {
+        freqvec_out << i << " ";
+      }
+      freqvec_out << std::endl;
 
-    reset_vec();
+      reset_vec();
+    }
   };
 };
