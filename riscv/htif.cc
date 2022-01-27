@@ -18,17 +18,12 @@
 extern bool logging_on;
 
 htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
-  : htif_pthread_t(args), sim(_sim), reset(true), seqno(1), checkpoint(NULL)
+  : htif_pthread_t(args), sim(_sim), reset(true), seqno(1)
 {
     checkpointing_active = false;
 }
 
-htif_isasim_t::~htif_isasim_t()
-{
-  if (this->checkpoint) {
-    free(this->checkpoint);
-  }
-}
+htif_isasim_t::~htif_isasim_t() {}
 
 // This is called by sim as a way to transfer control to HTIF host module so that any pending
 // transactions at any point in time can be completed.
@@ -89,11 +84,11 @@ void htif_isasim_t::tick_once()
         buf[i] = sim->debug_mmu->load_uint64((hdr.addr+i)*HTIF_DATA_ALIGN);
 
       if(checkpointing_active){
-        *checkpoint << "READ_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
+        htif_trans_live << "READ_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
         for (size_t i = 0; i < hdr.data_size; i++){
-          *checkpoint << buf[i] << " ";
+          htif_trans_live << buf[i] << " ";
         }
-        *checkpoint << std::endl;
+        htif_trans_live << std::endl;
       }
 
       send(buf, hdr.data_size * sizeof(buf[0]));
@@ -108,11 +103,11 @@ void htif_isasim_t::tick_once()
         sim->debug_mmu->store_uint64((hdr.addr+i)*HTIF_DATA_ALIGN, buf[i]);
 
       if(checkpointing_active){
-        *checkpoint << "WRITE_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
+        htif_trans_live << "WRITE_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
         for (size_t i = 0; i < hdr.data_size; i++){
-          *checkpoint << buf[i] << " ";
+          htif_trans_live << buf[i] << " ";
         }
-        *checkpoint << std::endl;
+        htif_trans_live << std::endl;
       }
 
       packet_header_t ack(HTIF_CMD_ACK, seqno, 0, 0);
@@ -137,7 +132,7 @@ void htif_isasim_t::tick_once()
       {
         uint64_t scr = sim->get_scr(regno);
         if(checkpointing_active){
-          *checkpoint << "MOD_SCR " << coreid << " " << regno << " " << scr << " " << scr << std::endl;
+          htif_trans_live << "MOD_SCR " << coreid << " " << regno << " " << scr << " " << scr << std::endl;
         }
         send(&scr, sizeof(scr));
         break;
@@ -184,7 +179,7 @@ void htif_isasim_t::tick_once()
       // Print TOHOST content only when something significant happens)
       if((regno != (CSR_TOHOST & 0x1f)) || ((old_val != 0) || (old_val != new_val))){
         if(checkpointing_active){
-          *checkpoint << "MOD_SCR " << coreid << " " << regno << " " << old_val << " " << new_val << std::endl;
+          htif_trans_live << "MOD_SCR " << coreid << " " << regno << " " << old_val << " " << new_val << std::endl;
         }
       }
       send(&old_val, sizeof(old_val));
@@ -313,29 +308,26 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
 void htif_isasim_t::start_checkpointing()
 {
   checkpointing_active = true;
-  this->checkpoint = new std::stringstream();
 }
 
 void htif_isasim_t::output_checkpointing(std::ostream& checkpoint_file)
 {
   if(checkpointing_active){
-	  this->checkpoint->seekg(0);
-	  std::copy(
-	  	    std::istreambuf_iterator<char>(*this->checkpoint),
-	  	    std::istreambuf_iterator<char>(),
-	  	    std::ostreambuf_iterator<char>(checkpoint_file)
-	  );
-	  checkpoint_file << "END_HTIF_CHECKPOINT 0 0 0" << std::endl;
+    if (!this->htif_trans_live.good()) {
+      std::cerr << "ERROR: Corrupted HTIF live stream, state = " << this->htif_trans_live.rdstate() << std::endl;
+      exit(1);
+    }
+
+    // record the live stream
+    this->htif_trans_recorded.append(this->htif_trans_live.rdbuf()->str());
+
+    // clear the live stream
+    this->htif_trans_live.clear();
+    this->htif_trans_live.str(std::string());
+
+    // dump the recorded HTIF transactions
+    checkpoint_file << this->htif_trans_recorded;
+    checkpoint_file << "END_HTIF_CHECKPOINT 0 0 0" << std::endl;
   }
 
 }
-
-void htif_isasim_t::stop_checkpointing()
-{
-  if(checkpointing_active){
-   *checkpoint << "END_HTIF_CHECKPOINT 0 0 0" << std::endl;
-  }
-
-  checkpointing_active = false;
-}
-

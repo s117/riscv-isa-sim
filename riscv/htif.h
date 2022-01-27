@@ -49,7 +49,6 @@ public:
   bool restore_checkpoint(std::istream& restore);
   void start_checkpointing();
   void output_checkpointing(std::ostream& checkpoint_file);
-  void stop_checkpointing();
 
 private:
   sim_t* sim;
@@ -58,8 +57,8 @@ private:
   void setup_replay_state(replay_pkt_t*);
   bool checkpointing_active;
 
-  //std::fstream* checkpoint;
-  std::stringstream* checkpoint;
+  std::string htif_trans_recorded;
+  std::stringstream htif_trans_live;
 
   void tick_once();
 };
