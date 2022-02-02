@@ -214,7 +214,8 @@ void sim_t::init_checkpoint()
 
 bool sim_t::create_checkpoint(std::string checkpoint_file)
 {
-  bool htif_return = true;
+  ogzstream proc_chkpt;
+
   // Check if file name has .gz extension. If not, append .gz to the name
   if(checkpoint_file.substr(checkpoint_file.find_last_of(".") + 1) != "gz") {
     checkpoint_file = checkpoint_file+".gz";
@@ -241,12 +242,13 @@ bool sim_t::create_checkpoint(std::string checkpoint_file)
   }
   proc_chkpt.close();
   std::cerr << "Created processor checkpoint to " << checkpoint_file << std::endl;
-  return htif_return;
+
+  return true;
 }
 
 bool sim_t::restore_checkpoint(std::string restore_file)
 {
-  bool htif_return = true;
+  igzstream restore_chkpt;
 
   // Check if file name has .gz extension. If not, append .gz to the name
   if(restore_file.substr(restore_file.find_last_of(".") + 1) != "gz") {
@@ -254,14 +256,14 @@ bool sim_t::restore_checkpoint(std::string restore_file)
   }
 
   restore_chkpt.open (restore_file.c_str(), std::ios::in | std::ios::binary);
-  if ( ! proc_chkpt.good()) {
+  if ( ! restore_chkpt.good()) {
     std::cerr << "ERROR: Opening file `" << restore_file << "' failed.\n";
 	  return false;
   }
 
   std::cerr << "Trying to restore HTIF state from " << restore_file << std::endl;
   // This tick will restore the checkpoint.
-  htif_return = htif->restore_checkpoint(restore_chkpt);
+  bool htif_return = htif->restore_checkpoint(restore_chkpt);
   std::cerr << "Done restoring HTIF state" << std::endl;
 
   std::cerr << "Trying to restore memory from " << restore_file << std::endl;

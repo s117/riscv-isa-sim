@@ -97,12 +97,6 @@ private:
 
   friend class htif_isasim_t;
 
-
-
-  //std::fstream proc_chkpt;
-  //std::fstream restore_chkpt;
-  ogzstream proc_chkpt;
-  igzstream restore_chkpt;
   void create_memory_checkpoint(std::ostream& memory_chkpt);
   void restore_memory_checkpoint(std::istream& memory_chkpt);
   void create_register_checkpoint(std::ostream& proc_chkpt);
