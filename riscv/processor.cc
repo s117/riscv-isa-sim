@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include "unistd.h"
+#include <limits.h>
 
 #undef STATE
 #define STATE state
@@ -123,14 +124,19 @@ void processor_t::set_simpoint(bool enable, size_t interval)
   if (enable) {
     std::string bbv_file = std::string("bbv_proc_") + std::to_string(id);
     std::string pcfvec_file = std::string("pcfvec_proc_") + std::to_string(id);
+#if defined(__APPLE__) && defined(__MACH__)
+    char curr_dir[PATH_MAX];
+    getcwd(curr_dir, PATH_MAX);
+#else
     char* curr_dir = get_current_dir_name();
-
+#endif
     bbt->init_bb_tracker(curr_dir, bbv_file.c_str());
     bbt->set_interval_size(interval);
 
     pc_freqvec_tracker->init_pc_freqvec_tracker(curr_dir, pcfvec_file.c_str());
-
+#if !(defined(__APPLE__) && defined(__MACH__))
     free(curr_dir);
+#endif
   }
 }
 
