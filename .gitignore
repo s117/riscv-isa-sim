@@ -1,12 +1,46 @@
-build*
-*.gch
-.*.swp
-autom4te.cache/
-config.h.in~
+#=========================================================================
+# Git Ignore Files
+#=========================================================================
+# We explicitly ignore a default build directory and the autoconf
+# generated autom4te.cache directory. This makes it easy to do a clean
+# build under the source directory and still have it appear clean to git.
+
+# autoconf generated files
+autom4te.cache
+configure
+configure.scan
 config.log
+config.sub
+config.cache
+config.guess
+config.status
+config.h.in
+scripts/*
+
+# autotools backup files
+*~
+
+# generated Makefile
+Makefile
+
+# build folder
+build*
+cmake-build-*
+
+# pre-compiled headers
+*.gch
+
+# vim swap
+.*.swp
+
+# vscode
+.vscode
+
+# jetbrains
+.idea
+
+# others
 .autotools
 .cproject
 .project
 .settings
-.idea
-cmake-build-*
