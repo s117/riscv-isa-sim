@@ -84,8 +84,8 @@ int main(int argc, char** argv)
   parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
   parser.option('m', 0, 1, [&](const char* s){mem_mb = atoi(s);});
   parser.option('e', 0, 1, [&](const char* s){stop_amt = atoll(s);});
-  parser.option('c', 0, 1, [&](const char* s){checkpoint = true; checkpoint_desc_file = s;});
-  parser.option('f', 0, 1, [&](const char* s){checkpoint_file = s;});
+  parser.option(0, "make-checkpoint", 1, [&](const char* s){checkpoint = true; checkpoint_desc_file = s;});
+  parser.option('c', 0, 1, [&](const char* s){checkpoint_file = s;});
   parser.option('t', 0, 1, [&](const char* s){
     trace = true;
     std::string param(s);
