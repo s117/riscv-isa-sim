@@ -20,21 +20,26 @@ static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
   fprintf(stderr, "Host Options:\n");
+  fprintf(stderr, "  -h                 Print this help message\n");
   fprintf(stderr, "  -p<n>              Simulate <n> processors\n");
   fprintf(stderr, "  -m<n>              Provide <n> MB of target memory\n");
   fprintf(stderr, "  -d                 Interactive debug mode\n");
   fprintf(stderr, "  -g                 Track histogram of PCs\n");
-  fprintf(stderr, "  -s <Interval>      Dump basic block vector profile for Simpoint with specified interval\n");
-  fprintf(stderr, "  -t<n> / -t<s>,<n>    Trace the simulation to file trace_proc_[coreid].gz\n");
+  fprintf(stderr, "  -s<interval>       Dump basic block vector profile for Simpoint with specified interval\n");
+  fprintf(stderr, "  -t<n> / -t<s>,<n>  Trace the simulation to file trace_proc_[coreid].gz\n");
   fprintf(stderr, "                       If <s> is given, will skip <s> instructions prior to tracing\n");
   fprintf(stderr, "                       If <n> is 0 the entire trace will be kept, otherwise only keep\n");
   fprintf(stderr, "                       the trace of last <n> instruction before simulation stop.\n");
-  fprintf(stderr, "  -h                 Print this help message\n");
+  fprintf(stderr, "  -e<n>              Stop the simulation once executed <n> instructions.\n");
+  fprintf(stderr, "  -c<ckpt-gz-file>   Restore from a checkpoint.\n");
+  fprintf(stderr, "\n");
   fprintf(stderr, "  --ic=<S>:<W>:<B>   Instantiate a cache model with S sets,\n");
   fprintf(stderr, "  --dc=<S>:<W>:<B>     W ways, and B-byte blocks (with S and\n");
   fprintf(stderr, "  --l2=<S>:<W>:<B>     B both powers of 2).\n");
   fprintf(stderr, "  --extension=<name> Specify RoCC Extension\n");
   fprintf(stderr, "  --extlib=<name>    Shared library to load\n");
+  fprintf(stderr, "  --make-checkpoint=<ckpt-desc-file>\n");
+  fprintf(stderr, "                     Create checkpoints as directed by the description files.\n");
   exit(1);
 }
 
