@@ -95,7 +95,9 @@ public:
   bool simpoint_enabled;
   uint64_t num_bb_inst;
   bb_tracker_t* get_bbt() { return bbt; }
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
   pc_freqvec_tracker_t* get_pc_freqvec_tracker() { return pc_freqvec_tracker; }
+#endif
   void set_simpoint(bool enable, size_t interval);
 
   bool get_simpoint() { return simpoint_enabled; };
@@ -119,7 +121,9 @@ private:
 
 #ifdef RISCV_ENABLE_SIMPOINT
   bb_tracker_t* bbt;
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
   pc_freqvec_tracker_t* pc_freqvec_tracker;
+#endif
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
