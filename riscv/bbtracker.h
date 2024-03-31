@@ -35,7 +35,6 @@ private:
 
   uint64_t dyn_inst;
   uint64_t total_inst;
-  uint64_t total_calls;
 
   bb_node_ptr create_bb_node(uint64_t pc, uint64_t num_inst);
 
