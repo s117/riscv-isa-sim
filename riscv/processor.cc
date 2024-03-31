@@ -46,7 +46,9 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   num_bb_inst = 0;
   simpoint_enabled = false;
   bbt = new bb_tracker_t();
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
   pc_freqvec_tracker = new pc_freqvec_tracker_t();
+#endif
 #endif
 }
 
@@ -64,7 +66,9 @@ processor_t::~processor_t()
 
 #ifdef RISCV_ENABLE_SIMPOINT
   delete bbt;
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
   delete pc_freqvec_tracker;
+#endif
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
@@ -133,7 +137,10 @@ void processor_t::set_simpoint(bool enable, size_t interval)
     bbt->init_bb_tracker(curr_dir, bbv_file.c_str());
     bbt->set_interval_size(interval);
 
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
     pc_freqvec_tracker->init_pc_freqvec_tracker(curr_dir, pcfvec_file.c_str());
+#endif
+
 #if !(defined(__APPLE__) && defined(__MACH__))
     free(curr_dir);
 #endif
@@ -279,11 +286,17 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
     reg_t opcode = fetch.insn.opcode();
     if(opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH){
       bb_tracker_t* bbt = p->get_bbt();
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
       if (unlikely(bbt->bb_tracker((uint64_t)pc,p->num_bb_inst)))
         p->get_pc_freqvec_tracker()->finish_vec();
+#else
+      bbt->bb_tracker((uint64_t)pc, p->num_bb_inst);
+#endif
       p->num_bb_inst = 0;
     }
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
     p->get_pc_freqvec_tracker()->update_vec(pc);
+#endif
   }
 #endif
   return npc;
@@ -381,7 +394,9 @@ size_t processor_t::step(size_t n)
     // without the following, scall and sbreak instructions will not be counted
     if (dynamic_cast<trap_syscall*>(&t) || dynamic_cast<trap_breakpoint*>(&t)) {
 #ifdef RISCV_ENABLE_SIMPOINT
+#ifdef RISCV_ENABLE_PC_FREQ_VEC
       pc_freqvec_tracker->update_vec(pc);
+#endif
 #endif
       increment_instret();
     }
