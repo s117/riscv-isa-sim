@@ -10,7 +10,6 @@ bb_tracker_t::bb_tracker_t() {
 
   dyn_inst = 0;
   total_inst = 0;
-  total_calls = 0;
 
 }
 
