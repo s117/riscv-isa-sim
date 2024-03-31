@@ -172,6 +172,9 @@ void htif_isasim_t::tick_once()
             }
           }
           break;
+        case CSR_COUNT & 0x1f:
+          old_val = proc->get_state()->count;
+          break;
         default:
           abort();
       }
