@@ -10,7 +10,7 @@
 #include <iostream>
 #include <memory>
 #include "trap.h"
-#include "gzstream.h"
+#include "fesvr/gzstream.h"
 #include "disasm.h"
 #include "processor.h"
 

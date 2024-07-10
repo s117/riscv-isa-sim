@@ -10,7 +10,7 @@
 #include <signal.h>
 #include <iostream>
 #include <fstream>
-#include <gzstream.h>
+#include "fesvr/gzstream.h"
 
 bool logging_on             = false;
 

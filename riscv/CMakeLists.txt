@@ -1,7 +1,6 @@
 # RISCV
 cmake_minimum_required(VERSION 3.23)
 
-find_package(ZLIB)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -24,7 +23,6 @@ set(
         insn_template.h
         mulhi.h
         bbtracker.h
-        gzstream.h
         ckpt_desc_reader.h
         debug_tracer.h
         pc_freqvec_tracker.h
@@ -46,7 +44,6 @@ set(
         rocc.cc
         regnames.cc
         bbtracker.cc
-        gzstream.cc
         ckpt_desc_reader.cc
         debug_tracer.cc
         ${riscv_gen_srcs}
@@ -68,6 +65,5 @@ add_library(
 target_link_libraries(riscv riscv-interface)
 target_link_libraries(riscv fesvr-static)
 target_link_libraries(riscv softfloat)
-target_link_libraries(riscv ZLIB::ZLIB)
 target_link_libraries(riscv Threads::Threads)
 target_link_libraries(riscv ${CMAKE_DL_LIBS})

@@ -3,7 +3,7 @@
 
 #include <cinttypes>
 #include <string>
-#include "gzstream.h"
+#include "fesvr/gzstream.h"
 
 /* Size of basic block hash table. Should be increased for very 
    large programs (greater than 1 million basic blocks) */

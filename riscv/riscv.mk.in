@@ -22,7 +22,6 @@ riscv_hdrs = \
 	insn_template.h \
 	mulhi.h \
 	bbtracker.h	\
-	gzstream.h	\
 	ckpt_desc_reader.h \
 	debug_tracer.h \
 
@@ -42,7 +41,6 @@ riscv_srcs = \
 	rocc.cc \
 	regnames.cc \
 	bbtracker.cc	\
-	gzstream.cc	\
 	ckpt_desc_reader.cc \
 	debug_tracer.cc \
 	$(riscv_gen_srcs) \

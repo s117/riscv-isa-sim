@@ -7,7 +7,7 @@
 #include <string>
 #include <memory>
 #include <fstream>
-#include <gzstream.h>
+#include "fesvr/gzstream.h"
 #include "processor.h"
 #include "mmu.h"
 
