@@ -1,7 +1,7 @@
 #include <cinttypes>
 #include <string>
 #include <cstring>
-#include "gzstream.h"
+#include "fesvr/gzstream.h"
 #include "bbtracker.h"
 
 #define __FREQ_VEC_ELEMENT_T_concat(size) uint##size##_t

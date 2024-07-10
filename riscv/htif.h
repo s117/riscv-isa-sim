@@ -6,7 +6,6 @@
 #include <fesvr/htif_pthread.h>
 #include <fstream>
 #include <sstream>
-//#include <gzstream.h>
 
 class sim_t;
 struct packet;
