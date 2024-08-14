@@ -4,6 +4,7 @@
 
 #include "decode.h"
 #include "config.h"
+#include "processor_execution_controller.h"
 #include <cstring>
 #include <vector>
 #include <map>
@@ -112,6 +113,7 @@ public:
   freg_t rd_fpr(size_t rn, operand_t operand);
   void wr_fpr(size_t rn, freg_t val);
 #endif
+  processor_execution_controller_t htif_exec_ctrl;
 
 private:
   sim_t* sim;

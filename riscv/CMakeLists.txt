@@ -1,5 +1,6 @@
 # RISCV
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
+    find_package(ZLIB)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
 endif ()
@@ -14,6 +15,7 @@ set(
         decode.h
         mmu.h
         processor.h
+        processor_execution_controller.h
         sim.h
         trap.h
         encoding.h
@@ -24,7 +26,7 @@ set(
         insn_template.h
         mulhi.h
         bbtracker.h
-        ckpt_desc_reader.h
+        stream_compression.h
         debug_tracer.h
         pc_freqvec_tracker.h
         ${riscv_gen_hdrs}
@@ -34,6 +36,7 @@ set(
         riscv_srcs
         htif.cc
         processor.cc
+        stream_compression.cc
         sim.cc
         interactive.cc
         trap.cc
@@ -45,7 +48,6 @@ set(
         rocc.cc
         regnames.cc
         bbtracker.cc
-        ckpt_desc_reader.cc
         debug_tracer.cc
         ${riscv_gen_srcs}
 )
@@ -68,8 +70,10 @@ target_link_libraries(riscv softfloat)
 
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     target_link_libraries(riscv Threads::Threads)
+    target_link_libraries(riscv ZLIB::ZLIB)
 else ()
     target_link_libraries(riscv pthread)
+    target_link_libraries(riscv z)
 endif ()
 
 

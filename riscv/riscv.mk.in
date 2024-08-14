@@ -12,6 +12,7 @@ riscv_hdrs = \
 	decode.h \
 	mmu.h \
 	processor.h \
+	processor_execution_controller.h \
 	sim.h \
 	trap.h \
 	encoding.h \
@@ -22,7 +23,7 @@ riscv_hdrs = \
 	insn_template.h \
 	mulhi.h \
 	bbtracker.h	\
-	ckpt_desc_reader.h \
+	stream_compression.h \
 	debug_tracer.h \
 
 riscv_precompiled_hdrs = \
@@ -31,6 +32,7 @@ riscv_precompiled_hdrs = \
 riscv_srcs = \
 	htif.cc \
 	processor.cc \
+	stream_compression.cc \
 	sim.cc \
 	interactive.cc \
 	trap.cc \
@@ -41,7 +43,6 @@ riscv_srcs = \
 	rocc.cc \
 	regnames.cc \
 	bbtracker.cc	\
-	ckpt_desc_reader.cc \
 	debug_tracer.cc \
 	$(riscv_gen_srcs) \
 

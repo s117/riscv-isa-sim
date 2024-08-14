@@ -4,7 +4,7 @@
 #include "htif.h"
 #include "cachesim.h"
 #include "extension.h"
-#include "ckpt_desc_reader.h"
+#include "fesvr/ckpt_desc_reader.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
 #include <stdio.h>
@@ -169,7 +169,7 @@ int main(int argc, char** argv)
   if (checkpoint) { // Runs Spike in checkpoint mode
     s.init_checkpoint();
     // Load the checkpoint description
-    ckpt_desc_list ckpt_descs;
+    ckpt_desc_list_t ckpt_descs;
     try {
       ckpt_descs = ckpt_desc_file_read(std::string(checkpoint_desc_file));
       ckpt_desc_print(ckpt_descs);

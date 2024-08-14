@@ -271,8 +271,9 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 #ifdef RISCV_ENABLE_DBG_TRACE
   p->get_dbg_tracer()->trace_before_insn_execute(pc, fetch.insn);
 #endif
-
+  p->htif_exec_ctrl.pre_execution_check(pc);
   reg_t npc = fetch.func(p, fetch.insn, pc);
+  p->htif_exec_ctrl.post_execution_check(npc);
   commit_log(p->get_state(), pc, fetch.insn);
   p->update_histogram(pc);
 
@@ -402,6 +403,7 @@ size_t processor_t::step(size_t n)
     }
   }
   catch(serialize_t& s) {}
+  catch(core_frozen_t& f) {}
   state.pc = pc;
   update_timer(&state, instret);
   return instret;
