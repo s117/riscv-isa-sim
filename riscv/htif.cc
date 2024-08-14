@@ -3,6 +3,7 @@
 #include "htif.h"
 #include "sim.h"
 #include "encoding.h"
+#include "stream_compression.h"
 #include <unistd.h>
 #include <stdexcept>
 #include <stdlib.h>
@@ -41,14 +42,15 @@ bool htif_isasim_t::tick()
   }
 
   // If reset is set as true, which it is during initialization, the HTIF host module sends a bunch
-  // of packets to initialize memory and processor state. Keep stepping the HTIF for init sequence 
-  // to complete before returning control to the caller. The HTIF host module sets reset to low once 
+  // of packets to initialize memory and processor state. Keep stepping the HTIF for init sequence
+  // to complete before returning control to the caller. The HTIF host module sets reset to low once
   // the init sequence is complete.
   // If reset is low (normal operation) tick only once to complete a single pending transaction
   do tick_once(); while (reset);
 
   return true;
 }
+
 
 void htif_isasim_t::tick_once()
 {
@@ -76,7 +78,7 @@ void htif_isasim_t::tick_once()
     {
       ifprintf(logging_on,stderr,"HTIF_CMD_READ_MEM seq no: %" PRIu8 "\n", seqno);
 
-      packet_header_t ack(HTIF_CMD_ACK, seqno, hdr.data_size, 0);
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, hdr.data_size, 0);
       send(&ack, sizeof(ack));
 
       uint64_t buf[hdr.data_size];
@@ -110,7 +112,7 @@ void htif_isasim_t::tick_once()
         htif_trans_live << std::endl;
       }
 
-      packet_header_t ack(HTIF_CMD_ACK, seqno, 0, 0);
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, 0);
       send(&ack, sizeof(ack));
       break;
     }
@@ -125,7 +127,7 @@ void htif_isasim_t::tick_once()
 
       ifprintf(logging_on,stderr,"HTIF_CMD_READ/WRITE_CONTROL_REG reg no: %" PRIreg " seq no: %" PRIu8 "\n",regno, seqno);
 
-      packet_header_t ack(HTIF_CMD_ACK, seqno, 1, 0);
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 1, 0);
       send(&ack, sizeof(ack));
 
       if (coreid == 0xFFFFF) // system control register space
@@ -188,10 +190,154 @@ void htif_isasim_t::tick_once()
       send(&old_val, sizeof(old_val));
       break;
     }
+    case HTIF_CMD_DOWNLOAD_HART_FULL_STATE:
+    {
+      ifprintf(logging_on, stderr, "HTIF_CMD_DOWNLOAD_HART_FULL_STATE seq no: %" PRIu8 "\n", seqno);
+
+      reg_t coreid = hdr.addr;
+      const state_t *core_state = sim->get_core(coreid)->get_state();
+
+      size_t ds = (sizeof(state_t) + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN;
+      std::vector<uint8_t> padded_buf(ds * HTIF_DATA_ALIGN, 0);
+      memcpy(padded_buf.data(), core_state, sizeof(*core_state));
+
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, ds, sizeof(state_t)); // use addr to pass the actual size of the dumped state
+      send(&ack, sizeof(ack));
+      send(padded_buf.data(), padded_buf.size());
+      break;
+    }
+    case HTIF_CMD_UPLOAD_HART_FULL_STATE:
+    {
+      ifprintf(logging_on, stderr, "HTIF_CMD_UPLOAD_HART_FULL_STATE seq no: %" PRIu8 "\n", seqno);
+
+      reg_t coreid = hdr.addr;
+      state_t *core_state = sim->get_core(coreid)->get_state();
+
+      const uint8_t *buf = (const uint8_t *) p.get_payload();
+      assert(p.get_payload_size() >= sizeof(state_t));
+      memcpy(core_state, buf, sizeof(*core_state));
+
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, sizeof(state_t)); // use addr to pass the actual size of the data used
+      send(&ack, sizeof(ack));
+      break;
+    }
+    case HTIF_CMD_READ_HART_EXEC_CONTROL_REG:
+    case HTIF_CMD_WRITE_HART_EXEC_CONTROL_REG:
+    {
+      reg_t coreid = hdr.addr >> 20;
+      reg_t regno = hdr.addr & ((1 << 20) - 1);
+      reg_t old_val, new_val = 0 /* shut up gcc */;
+
+      ifprintf(
+        logging_on, stderr, "HTIF_CMD_%s_CORE_EXEC_CONTROL_REG reg no: %" PRIreg " seq no: %" PRIu8 "\n",
+        hdr.cmd == HTIF_CMD_READ_HART_EXEC_CONTROL_REG ? "READ" : "WRITE",
+        regno, seqno);
+
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 1, 0);
+      send(&ack, sizeof(ack));
+      processor_t *proc = sim->get_core(coreid);
+
+      if (hdr.cmd == HTIF_CMD_WRITE_HART_EXEC_CONTROL_REG)
+      {
+        assert(hdr.data_size == 1);
+        memcpy(&new_val, p.get_payload(), sizeof(new_val));
+        old_val = proc->htif_exec_ctrl.write_cr(regno, new_val);
+      }
+      else
+      {
+        assert(hdr.data_size == 0);
+        old_val = proc->htif_exec_ctrl.read_cr(regno);
+      }
+      send(&old_val, sizeof(old_val));
+      break;
+    }
+    case HTIF_CMD_DOWNLOAD_MEM_DUMP:
+    {
+      ifprintf(logging_on, stderr, "HTIF_CMD_DOWNLOAD_MEM_DUMP seq no: %" PRIu8 "\n", seqno);
+      size_t total_sent = 0;
+      assert(hdr.addr == 0); // Initiating packet must have hdr.addr == 0 [H.1]
+      stream_compression_t::compress_region(sim->mem, sim->memsz, chunk_max_size(), [this, &total_sent](const char *data, size_t len) {
+        // Send compressed memory stream [T.1]
+        size_t ds = (len + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN;
+        packet_header_t ack(HTIF_CMD_ACK, seqno++, ds, len);
+        send(&ack, sizeof(ack));
+        send(data, ds * HTIF_DATA_ALIGN);
+        total_sent += len;
+
+        // Wait for the polling request from host [H.2]
+        packet_header_t polling_hdr;
+        recv(&polling_hdr, sizeof(polling_hdr));
+        assert(polling_hdr.seqno == seqno);
+        assert(polling_hdr.get_payload_size() == 0);
+        assert(polling_hdr.cmd == HTIF_CMD_DOWNLOAD_MEM_DUMP);
+        assert(polling_hdr.addr == len);
+      });
+
+      // Send eof-of-stream packet [T.2]
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, total_sent);
+      send(&ack, sizeof(ack));
+      break;
+    }
+    case HTIF_CMD_UPLOAD_MEM_DUMP:
+    {
+      ifprintf(logging_on, stderr, "HTIF_CMD_UPLOAD_MEM_DUMP seq no: %" PRIu8 "\n", seqno);
+      const size_t receiving_capacity = chunk_max_size();
+      // Initiating packet must have hdr.addr == 0 [H.1]
+      assert(hdr.addr == 0);
+      std::vector<char> recv_buf(receiving_capacity);
+
+      size_t total_received = 0;
+      // This initial value is special, as it is for telling the host what's the target's max receiving capacity [T.1]
+      size_t prev_received_size = receiving_capacity;
+      bool end_of_stream = false;
+
+      size_t inflated_size = stream_compression_t::decompress_region(sim->mem, sim->memsz, [this, &recv_buf, &end_of_stream, &total_received, &prev_received_size](char *&data, size_t &len) {
+        assert(!end_of_stream);
+        // ACK the host with hdr.addr be the max receiving capacity for the first reply [T.1],
+        // then ACK the host with hdr.addr to be the previously received bytes. [T.2]
+        packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, prev_received_size);
+        send(&ack, sizeof(ack));
+
+        // Receive the streaming packet from host [H.2] / [H.3]
+        packet_header_t streaming_hdr;
+        recv(&streaming_hdr, sizeof(streaming_hdr));
+        assert(streaming_hdr.cmd == HTIF_CMD_UPLOAD_MEM_DUMP);
+
+        end_of_stream = streaming_hdr.get_payload_size() == 0;
+        if (end_of_stream)
+        {
+          // End of stream, hdr.addr is the total bytes sent, counted at the host side [H.3]
+          if (streaming_hdr.addr != total_received)
+            throw std::runtime_error(
+              "Error happened while load memory dump to target: the host reported that " +
+              std::to_string(streaming_hdr.addr) +
+              " bytes was sent to target, but target only received " +
+              std::to_string(total_received) +
+              " bytes.");
+          data = nullptr;
+          len = 0;
+          return;
+        }
+        // Received a streamed chunk [H.2]
+        assert(streaming_hdr.get_payload_size() <= recv_buf.size());
+        recv(recv_buf.data(), streaming_hdr.get_payload_size());
+        assert(streaming_hdr.addr <= streaming_hdr.get_payload_size());
+        total_received += streaming_hdr.addr;
+
+        // Feed it to the decompressor
+        data = recv_buf.data();
+        len = streaming_hdr.addr;
+        prev_received_size = streaming_hdr.addr;
+      });
+
+      // Confirm the decompressed data size to host
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, inflated_size);
+      send(&ack, sizeof(ack));
+      break;
+    }
     default:
       abort();
   }
-  seqno++;
 }
 
 bool htif_isasim_t::done()
@@ -240,8 +386,8 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
   }
 
   // If reset is set as true, which it is during initialization, the HTIF host module sends a bunch
-  // of packets to initialize memory and processor state. Keep stepping the HTIF for init sequence 
-  // to complete before returning control to the caller. The HTIF host module sets reset to low once 
+  // of packets to initialize memory and processor state. Keep stepping the HTIF for init sequence
+  // to complete before returning control to the caller. The HTIF host module sets reset to low once
   // the init sequence is complete.
   // If reset is low (normal operation) tick only once to complete a single pending transaction
   //do tick_once(); while (reset);
@@ -251,7 +397,7 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
   std::string token1;
   reg_t token2, token3;
   replay_pkt_t pkt;
-  
+
   while(restore.good())
   {
     restore >> token1 >> token2 >> token3;
@@ -266,7 +412,7 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
       pkt.data_size = token3;
       for(unsigned int i=0; i < token3; i++)
         restore >> pkt.data[i];
-    } 
+    }
     else if(!token1.compare("MOD_SCR"))
     {
       fprintf(restore_log,"In MOD_SCR\n");
@@ -276,14 +422,14 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
       pkt.regno = token3;
       restore >> pkt.old_regval;
       restore >> pkt.new_regval;
-    } 
+    }
     else if(!token1.compare("END_HTIF_CHECKPOINT"))
     {
       // HTIF checkpoint restore complete
       //fprintf(stderr,"Done restoring HTIF state\n");
       //Read in the rest of the line so that correct token is read in the next iteration
       std::string dummy_line;
-      std::getline(restore,dummy_line); 
+      std::getline(restore,dummy_line);
       // Must tick to maintain the sequence of HTIF operations
       tick_once();
       break;
@@ -292,7 +438,7 @@ bool htif_isasim_t::restore_checkpoint(std::istream& restore)
     {
       //Read in the rest of the line so that correct token is read in the next iteration
       std::string dummy_line;
-      std::getline(restore,dummy_line); 
+      std::getline(restore,dummy_line);
       // Must tick to maintain the sequence of HTIF operations
       tick_once();
       continue;
