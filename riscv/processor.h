@@ -139,6 +139,7 @@ private:
   bool histogram_enabled;
   bool rv64;
   bool serialized;
+  bool waiting_host;
 
   std::vector<insn_desc_t> instructions;
   std::vector<insn_desc_t*> opcode_map;
