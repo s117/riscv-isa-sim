@@ -28,7 +28,7 @@ extern bool logging_on;
 
 processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   : sim(_sim), mmu(_mmu), ext(NULL), disassembler(new disassembler_t),
-    id(_id), run(false), debug(false), serialized(false)
+    id(_id), run(false), debug(false), serialized(false), waiting_host(false)
 {
 #ifdef RISCV_ENABLE_DBG_TRACE
   dbg_tracer = new debug_tracer_t(this);
@@ -508,7 +508,17 @@ void processor_t::set_pcr(int which, reg_t val)
       break;
     case CSR_TOHOST:
       if (state.tohost == 0)
+      {
+        #define GET_COMMAND_DEV_ID(tohost_val) ((uint8_t)((tohost_val) >> 56))
+        #define DEV_ID_SYSCALL ((uint8_t)0)
+
         state.tohost = val;
+        if (GET_COMMAND_DEV_ID(val) == DEV_ID_SYSCALL)
+        {
+          waiting_host = true;
+          while (waiting_host) sim->get_htif()->tick();
+        }
+      }
       break;
     case CSR_FROMHOST:
       set_fromhost(val);
@@ -521,6 +531,7 @@ void processor_t::set_fromhost(reg_t val)
   set_interrupt(IRQ_HOST, val != 0);
   state.fromhost = val;
   ifprintf(logging_on,stderr,"setting FROMHOST to %lu  STATUS = %u\n",val,state.sr);
+  if (val) waiting_host = false;
 }
 
 reg_t processor_t::get_pcr(int which)
