@@ -5,8 +5,10 @@
 #ifndef _PROCESSOR_EXECUTION_CONTROLLER
 #define _PROCESSOR_EXECUTION_CONTROLLER
 
-#include <stdexcept>
 #include "fesvr/hart_execution_reg.h"
+#include "decode.h"
+#include <cassert>
+#include <stdexcept>
 
 class core_frozen_t : public std::exception
 {
@@ -135,10 +137,18 @@ public:
   {
     if (this->frozen)
       throw std::runtime_error("Invalid HTIF execution control state invalid: instruction retired while harts is frozen (frozen=" + std::to_string(this->frozen) + ").");
+  }
 
+  void on_instret_increment() {
     // update instruction count down.
-    if ((this->enable & EXE_CTRL_MASK_INSTR_CNT_DOWN) && (loaded_instr_cnt_down > 0))
+    if ((this->enable & EXE_CTRL_MASK_INSTR_CNT_DOWN)) {
+      assert(this->loaded_instr_cnt_down > 0);
       --this->loaded_instr_cnt_down;
+    }
+  }
+
+  uint8_t frozen_state() {
+    return this->frozen;
   }
 };
 
