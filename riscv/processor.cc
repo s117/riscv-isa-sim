@@ -318,94 +318,131 @@ static size_t next_timer(state_t* state)
 }
 
 
-size_t processor_t::step(size_t n)
+/**
+ * Step for n instructions.
+ *
+ * @param n Number of instruction to step
+ * @return size_t The value of n.
+ */
+size_t processor_t::step(const size_t n)
 {
-  size_t instret = 0;
-  reg_t pc = state.pc;
-  mmu_t* _mmu = mmu;
+#ifdef RISCV_ENABLE_DBG_TRACE
+  #define dbg_tracker_increment_instret() { dbg_tracer->increment_instret(); }
+#else
+  #define dbg_tracker_increment_instret() {}
+#endif
 
-  #ifdef RISCV_ENABLE_DBG_TRACE
-    #define dbg_tracker_increment_instret() { dbg_tracer->increment_instret(); }
-  #else
-    #define dbg_tracker_increment_instret() {}
-  #endif
-
-  #ifdef RISCV_ENABLE_SIMPOINT
-    #define increment_num_bb_inst() { ++num_bb_inst; }
-  #else
-    #define increment_num_bb_inst() {}
-  #endif
+#ifdef RISCV_ENABLE_SIMPOINT
+  #define increment_num_bb_inst() { ++num_bb_inst; }
+#else
+  #define increment_num_bb_inst() {}
+#endif
 
   #define increment_instret() { \
     ++instret; \
+    htif_exec_ctrl.on_instret_increment(); \
     dbg_tracker_increment_instret(); \
     increment_num_bb_inst(); \
-  };
+  }
 
   if (unlikely(!run || !n))
     return 0;
-  n = std::min(n, next_timer(&state) | 1U);
 
-  try
+  size_t instret = 0;
+  mmu_t* _mmu = mmu;
+  while (instret < n)
   {
-    take_interrupt();
-
-    if (unlikely(debug))
+    auto last_instret = instret;
+    size_t batch_limit = std::min(n, instret + (next_timer(&state) | 1U));
+    reg_t pc = state.pc;
+    try
     {
-      while (instret < n)
-      {
-        insn_fetch_t fetch = mmu->load_insn(pc);
-        disasm(fetch.insn);
-        pc = execute_insn(this, pc, fetch);
-        increment_instret();
-        fprintf(stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
-      }
-    }
-    else while (instret < n)
-      {
-        size_t idx = _mmu->icache_index(pc);
-        auto ic_entry = _mmu->access_icache(pc);
+      take_interrupt();
 
-#define ICACHE_ACCESS(idx) { \
-        insn_fetch_t fetch = ic_entry->data; \
-        if(logging_on) { \
-          disasm(fetch.insn,pc); \
-        } \
-        pc = execute_insn(this, pc, fetch); \
-        ic_entry++; \
-        increment_instret(); \
-        ifprintf(logging_on,stderr,"RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n",STATE.XPR[fetch.insn.rs1()],STATE.XPR[fetch.insn.rs2()],STATE.XPR[fetch.insn.rd()]);  \
-        if (unlikely(instret == n)) break; \
-        if (idx == mmu_t::ICACHE_ENTRIES-1) break; \
-        if (unlikely(ic_entry->tag != pc)) break; \
-      }
-
-        switch (idx) {
-#include "icache.h"
+      if (unlikely(debug))
+      {
+        while (instret < batch_limit)
+        {
+          insn_fetch_t fetch = mmu->load_insn(pc);
+          disasm(fetch.insn);
+          pc = execute_insn(this, pc, fetch);
+          increment_instret();
+          fprintf(stderr, "RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n", STATE.XPR[fetch.insn.rs1()], STATE.XPR[fetch.insn.rs2()], STATE.XPR[fetch.insn.rd()]);
         }
       }
-  }
-  catch(trap_t& t)
-  {
-    pc = take_trap(t, pc);
+      else
+      {
+        while (instret < batch_limit)
+        {
+          size_t idx = _mmu->icache_index(pc);
+          auto ic_entry = _mmu->access_icache(pc);
 
-#ifdef RISCV_ENABLE_DBG_TRACE
-    dbg_tracer->trace_after_take_trap(t, state.epc, pc);
-#endif
-    // without the following, scall and sbreak instructions will not be counted
-    if (dynamic_cast<trap_syscall*>(&t) || dynamic_cast<trap_breakpoint*>(&t)) {
-#ifdef RISCV_ENABLE_SIMPOINT
-#ifdef RISCV_ENABLE_PC_FREQ_VEC
-      pc_freqvec_tracker->update_vec(pc);
-#endif
-#endif
-      increment_instret();
+          switch (idx)
+          {
+            #define ICACHE_ACCESS(idx)                                          \
+              {                                                                 \
+                insn_fetch_t fetch = ic_entry->data;                            \
+                if (logging_on) disasm(fetch.insn, pc);                         \
+                pc = execute_insn(this, pc, fetch);                             \
+                ic_entry++;                                                     \
+                increment_instret();                                            \
+                ifprintf(logging_on, stderr,                                    \
+                         "RS1: %" PRIu64 " RS2: %" PRIu64 " RD: %" PRIu64 "\n", \
+                         STATE.XPR[fetch.insn.rs1()],                           \
+                         STATE.XPR[fetch.insn.rs2()],                           \
+                         STATE.XPR[fetch.insn.rd()]);                           \
+                if (unlikely(instret == n)) break;                              \
+                if (idx == mmu_t::ICACHE_ENTRIES - 1) break;                    \
+                if (unlikely(ic_entry->tag != pc)) break;                       \
+              }
+            #include "icache.h"
+          }
+        }
+      }
+
+      // Update state
+      state.pc = pc;
+      update_timer(&state, instret - last_instret);
+    }
+    catch (trap_t &t)
+    {
+      // Take the trap - Get PC on handler
+      auto trap_handler = take_trap(t, pc);
+
+      // count scall and sbreak instructions
+      if (dynamic_cast<trap_syscall *>(&t) || dynamic_cast<trap_breakpoint *>(&t))
+        increment_instret();
+
+      // Update state
+      pc = trap_handler;
+      state.pc = pc;
+      update_timer(&state, instret - last_instret);
+
+
+
+    }
+    catch (serialize_t &s)
+    {
+      // Encountered a HART state accessing instruction, therefore needs to be serialized.
+      // The instruction will be re-fetched and re-executed, so don't increment instret at the moment.
+
+      // Update state
+      state.pc = pc;
+      update_timer(&state, instret - last_instret);
+    }
+    catch (core_frozen_t &f)
+    {
+      // The core was frozen due to breakpoint.
+      // Update state before ticking HTIF, so that the host will see the most recent target state.
+      state.pc = pc;
+      update_timer(&state, instret - last_instret);
+
+      // Keep ticking HTIF to get the core defrost sooner.
+      while (htif_exec_ctrl.frozen_state()) sim->get_htif()->tick();
     }
   }
-  catch(serialize_t& s) {}
-  catch(core_frozen_t& f) {}
-  state.pc = pc;
-  update_timer(&state, instret);
+
+  assert(n == instret);
   return instret;
 }
 
@@ -425,6 +462,15 @@ reg_t processor_t::take_trap(trap_t& t, reg_t epc)
   state.cause = t.cause();
   state.epc = epc;
   t.side_effects(&state); // might set badvaddr etc.
+
+#ifdef RISCV_ENABLE_DBG_TRACE
+  dbg_tracer->trace_after_take_trap(t, state.epc, state.evec);
+#endif
+
+#if defined(RISCV_ENABLE_SIMPOINT) && defined(RISCV_ENABLE_PC_FREQ_VEC)
+  pc_freqvec_tracker->update_vec(state.evec);
+#endif
+
   return state.evec;
 }
 
