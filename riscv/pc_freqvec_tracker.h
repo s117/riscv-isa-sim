@@ -1,3 +1,6 @@
+#ifndef _PC_FREQ_VEC_TRACKER
+#define _PC_FREQ_VEC_TRACKER
+
 #include <cinttypes>
 #include <string>
 #include <cstring>
@@ -83,3 +86,5 @@ public:
     }
   };
 };
+
+#endif // _PC_FREQ_VEC_TRACKER
