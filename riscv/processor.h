@@ -11,6 +11,7 @@
 
 class processor_t;
 class mmu_t;
+struct insn_fetch_t;
 typedef reg_t (*insn_func_t)(processor_t*, insn_t, reg_t);
 class sim_t;
 class trap_t;
@@ -83,15 +84,27 @@ public:
   void set_fromhost(reg_t val);
   void set_interrupt(int which, bool on);
   reg_t get_pcr(int which);
+  reg_t write_exec_ctrl_cr(reg_t regnum, reg_t new_val) { return htif_exec_ctrl.write_cr(regnum, new_val); }
+  reg_t read_exec_ctrl_cr(reg_t regnum) { return htif_exec_ctrl.read_cr(regnum); }
   mmu_t* get_mmu() { return mmu; }
   state_t* get_state() { return &state; }
   extension_t* get_extension() { return ext; }
   uint32_t get_id() { return id; }
   void yield_load_reservation() { state.load_reservation = (reg_t)-1; }
-  void update_histogram(size_t pc);
+  inline void update_histogram(size_t pc)
+  {
+#ifdef RISCV_ENABLE_HISTOGRAM
+    size_t idx = pc >> 2;
+    pc_histogram[idx]++;
+#endif
+  }
 
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
+
+  inline void pre_execute_insn(reg_t pc, insn_t insn) __attribute__((always_inline));
+  inline void post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapped) __attribute__((always_inline));
+
 #ifdef RISCV_ENABLE_SIMPOINT
   bool simpoint_enabled;
   uint64_t num_bb_inst;
@@ -113,13 +126,14 @@ public:
   freg_t rd_fpr(size_t rn, operand_t operand);
   void wr_fpr(size_t rn, freg_t val);
 #endif
-  processor_execution_controller_t htif_exec_ctrl;
 
 private:
   sim_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
   extension_t* ext;
   disassembler_t* disassembler;
+
+  processor_execution_controller_t htif_exec_ctrl;
 
 #ifdef RISCV_ENABLE_SIMPOINT
   bb_tracker_t* bbt;
@@ -145,6 +159,9 @@ private:
   std::vector<insn_desc_t*> opcode_map;
   std::vector<insn_desc_t> opcode_store;
   std::map<size_t,size_t> pc_histogram;
+
+
+  inline reg_t execute_insn(const reg_t pc, const insn_fetch_t fetch) __attribute__((always_inline));
 
   void take_interrupt(); // take a trap if any interrupts are pending
   void serialize(); // collapse into defined architectural state

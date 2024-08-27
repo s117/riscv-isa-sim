@@ -13,7 +13,7 @@
 
 // ifprintf macro definition.
 #define ifprintf(condition, file, args...){	\
-    if(condition){  \
+    if(unlikely(condition)){  \
      fprintf(file, ##args);	\
     } \
   }
@@ -68,7 +68,7 @@ private:
   std::vector<processor_t*> procs;
 
   void step(size_t n); // step through simulation
-  static const size_t INTERLEAVE = 5000;
+  static const size_t INTERLEAVE = 8192;
   size_t current_step;
   size_t current_proc;
   bool debug;

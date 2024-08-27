@@ -29,6 +29,7 @@ set(
         stream_compression.h
         debug_tracer.h
         pc_freqvec_tracker.h
+        execute_insn_hook.h
         ${riscv_gen_hdrs}
 )
 

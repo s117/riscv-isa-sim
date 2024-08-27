@@ -34,3 +34,11 @@ add_subdirectory(dummy_rocc)
 add_subdirectory(hwacha)
 add_subdirectory(rvc)
 add_subdirectory(spike_main)
+
+if (DEFINED NO_DUFF_DEVICE)
+    target_compile_definitions(riscv PUBLIC STEPPING_WITHOUT_DUFF_DEVICE)
+endif ()
+
+if (NOT DEFINED NO_SIMPOINT)
+    target_compile_definitions(riscv PUBLIC RISCV_ENABLE_SIMPOINT)
+endif ()
