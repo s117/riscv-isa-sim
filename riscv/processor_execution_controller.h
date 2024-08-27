@@ -24,6 +24,7 @@ private:
   reg_t tmp_pc_break[NUM_PC_BREAK] = {0};
   reg_t loaded_instr_cnt_down = 0;
   reg_t loaded_pc_break[NUM_PC_BREAK] = {0};
+  reg_t loaded_pc_break_filter = 0;
 
 public:
   reg_t read_cr(reg_t regnum)
@@ -65,6 +66,7 @@ public:
       reg_t rst_mask = EXE_CTRL_MASK_ALL & ~new_val;
       this->enable &= rst_mask;
       this->frozen &= rst_mask;
+      update_loaded_pc_break_filter();
       break;
     }
     case CR_EXE_CTRL_ENABLE:
@@ -76,6 +78,7 @@ public:
       for (size_t i = 0; i < NUM_PC_BREAK; ++i)
         if (new_val & (EXE_CTRL_MASK_PC0 << i))
           this->loaded_pc_break[i] = this->tmp_pc_break[i];
+      update_loaded_pc_break_filter();
       break;
     }
 
@@ -102,52 +105,70 @@ public:
     return old_val;
   }
 
-  void pre_execution_check(reg_t pc)
+  void update_loaded_pc_break_filter()
   {
+    reg_t new_filter = 0;
+    for (size_t i = 0; i < NUM_PC_BREAK; ++i)
+    {
+      reg_t PCn_BREAK_MASK = (EXE_CTRL_MASK_PC0 << i);
+      if ((this->enable & PCn_BREAK_MASK))
+      {
+        new_filter |= this->loaded_pc_break[i];
+      }
+    }
+    this->loaded_pc_break_filter = new_filter;
+  }
+
+  bool filter_break_pc(reg_t pc) const
+  {
+    return (pc & this->loaded_pc_break_filter) == pc;
+  }
+
+  inline void pre_execution_check(reg_t pc) __attribute__((always_inline))
+  {
+    if (likely(!this->frozen && !this->enable)) return;
+
     // check unconditional breakpoint
-    if (this->enable & EXE_CTRL_MASK_UNCONDITIONAL)
+    if (unlikely(this->enable & EXE_CTRL_MASK_UNCONDITIONAL))
     {
       this->frozen |= EXE_CTRL_MASK_UNCONDITIONAL;
       this->enable &= ~EXE_CTRL_MASK_UNCONDITIONAL;
     }
 
     // check instruction count down breakpoint
-    if ((this->enable & EXE_CTRL_MASK_INSTR_CNT_DOWN) && (this->loaded_instr_cnt_down == 0))
+    if (unlikely((this->enable & EXE_CTRL_MASK_INSTR_CNT_DOWN) && (this->loaded_instr_cnt_down == 0)))
     {
       this->frozen |= EXE_CTRL_MASK_INSTR_CNT_DOWN;
       this->enable &= ~EXE_CTRL_MASK_INSTR_CNT_DOWN;
     }
 
     // check PC breakpoint
-    for (size_t i = 0; i < NUM_PC_BREAK; ++i)
+    if (filter_break_pc(pc))
     {
-      reg_t PCn_BREAK_MASK = (EXE_CTRL_MASK_PC0 << i);
-      if ((this->enable & PCn_BREAK_MASK) && (pc == this->loaded_pc_break[i]))
+      for (size_t i = 0; i < NUM_PC_BREAK; ++i)
       {
-        this->frozen |= PCn_BREAK_MASK;
-        this->enable &= ~PCn_BREAK_MASK;
+        reg_t PCn_BREAK_MASK = (EXE_CTRL_MASK_PC0 << i);
+        if (unlikely((this->enable & PCn_BREAK_MASK) && (pc == this->loaded_pc_break[i])))
+        {
+          this->frozen |= PCn_BREAK_MASK;
+          this->enable &= ~PCn_BREAK_MASK;
+          update_loaded_pc_break_filter();
+        }
       }
     }
 
     // when frozen, use core_frozen_t exception to halt the harts simulation until defrost
-    if (this->frozen) throw core_frozen_t();
+    if (unlikely(this->frozen)) throw core_frozen_t();
   }
 
-  void post_execution_check(reg_t npc)
+  inline void on_instret_increment() __attribute__((always_inline))
   {
-    if (this->frozen)
-      throw std::runtime_error("Invalid HTIF execution control state invalid: instruction retired while harts is frozen (frozen=" + std::to_string(this->frozen) + ").");
-  }
-
-  void on_instret_increment() {
     // update instruction count down.
-    if ((this->enable & EXE_CTRL_MASK_INSTR_CNT_DOWN)) {
-      assert(this->loaded_instr_cnt_down > 0);
-      --this->loaded_instr_cnt_down;
-    }
+    if (unlikely(enable)) --this->loaded_instr_cnt_down;
   }
 
-  uint8_t frozen_state() {
+  uint8_t frozen_state() const
+  {
     return this->frozen;
   }
 };

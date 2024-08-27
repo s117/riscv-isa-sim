@@ -241,12 +241,12 @@ void htif_isasim_t::tick_once()
       {
         assert(hdr.data_size == 1);
         memcpy(&new_val, p.get_payload(), sizeof(new_val));
-        old_val = proc->htif_exec_ctrl.write_cr(regno, new_val);
+        old_val = proc->write_exec_ctrl_cr(regno, new_val);
       }
       else
       {
         assert(hdr.data_size == 0);
-        old_val = proc->htif_exec_ctrl.read_cr(regno);
+        old_val = proc->read_exec_ctrl_cr(regno);
       }
       send(&old_val, sizeof(old_val));
       break;

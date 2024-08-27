@@ -12,6 +12,7 @@ riscv_hdrs = \
 	decode.h \
 	mmu.h \
 	processor.h \
+	execute_insn_hook.h \
 	processor_execution_controller.h \
 	sim.h \
 	trap.h \

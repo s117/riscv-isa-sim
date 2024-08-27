@@ -73,9 +73,9 @@ void stream_compression_t::compress_region(const void *src, size_t len, size_t o
 
     input_consumed += assigned_in - zs.avail_in;
 
-    if (logging_on && (progress_mark << 20) <= input_consumed)
+    if (unlikely(logging_on && (progress_mark << 20) <= input_consumed))
     {
-      ifprintf(logging_on, stderr, "Compressed %" PRIu64 "MB memory.\n", uint64_t(input_consumed) >> 20);
+      fprintf(stderr, "Compressed %" PRIu64 "MB memory.\n", uint64_t(input_consumed) >> 20);
       progress_mark += 1024;
     }
   } while (zret != Z_STREAM_END);
@@ -137,9 +137,9 @@ size_t stream_compression_t::decompress_region(void *dst, size_t dst_limit, cons
       assert(zs.avail_out <= assigned_out);
       output_count += assigned_out - zs.avail_out;
 
-      if (logging_on && (progress_mark << 20) <= output_count)
+      if (unlikely(logging_on && (progress_mark << 20) <= output_count))
       {
-        ifprintf(logging_on, stderr, "Decompressed %" PRIu64 "MB memory.\n", uint64_t(output_count) >> 20);
+        fprintf(stderr, "Decompressed %" PRIu64 "MB memory.\n", uint64_t(output_count) >> 20);
         progress_mark += 1024;
       }
     } while (zs.avail_in != 0);
