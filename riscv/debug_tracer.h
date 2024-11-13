@@ -127,7 +127,9 @@ public:
 
   virtual ~debug_tracer_t();
 
-  void enable_trace(trace_output_t *trace_outputter);
+  void enable_trace(trace_output_t *trace_output = nullptr);
+
+  void register_trace_output(trace_output_t *trace_output);
 
   void trace_before_insn_ic_fetch(reg_t pc);
 
@@ -164,7 +166,7 @@ private:
   bool m_enabled;
   processor_t *m_tgt_proc;
   insn_record_t m_rec_insn;
-  trace_output_t *m_trace_output;
+  std::vector<trace_output_t *> m_trace_output;
 };
 
 #endif /* RISCV_ENABLE_DBG_TRACE */

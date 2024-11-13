@@ -21,20 +21,24 @@ debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_rec_insn() {
   m_enabled = false;
   m_insn_seq = 0;
   m_instret = 0;
-  m_trace_output = nullptr;
 }
 
 debug_tracer_t::~debug_tracer_t() {
-  if (m_enabled) {
-    delete m_trace_output;
+  for (auto output: m_trace_output) {
+    delete output;
   }
 }
 
-void debug_tracer_t::enable_trace(trace_output_t *trace_outputter) {
-  m_trace_output = trace_outputter;
+void debug_tracer_t::enable_trace(trace_output_t *trace_output) {
+  register_trace_output(trace_output);
   m_instret = m_tgt_proc->get_state()->count;
   m_enabled = true;
 }
+
+void debug_tracer_t::register_trace_output(trace_output_t *trace_output) {
+  if (trace_output) m_trace_output.push_back(trace_output);
+}
+
 
 void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
   if (!m_enabled)
@@ -192,7 +196,8 @@ void debug_tracer_t::trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val,
 
 void debug_tracer_t::drain_curr_record() {
   if (m_rec_insn.valid) {
-    m_trace_output->issue_insn(m_rec_insn);
+    for (auto output: m_trace_output)
+      output->issue_insn(m_rec_insn);
     seqno_incr();
   }
   clear_curr_record();
