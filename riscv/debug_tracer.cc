@@ -45,6 +45,7 @@ void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
     return;
 
   m_rec_insn.pc = pc;
+  m_rec_insn.next_pc = 0;
   m_rec_insn.seqno = m_insn_seq;
   m_rec_insn.cycle = m_insn_seq; // Assume one trace per cycle in ISA simulator
   m_rec_insn.instret = m_instret;
@@ -65,13 +66,14 @@ void debug_tracer_t::trace_before_insn_execute(reg_t pc, insn_t insn) {
   m_rec_insn.good = true;
 }
 
-void debug_tracer_t::trace_after_insn_execute(reg_t pc) {
+void debug_tracer_t::trace_after_insn_execute(reg_t pc, reg_t next_pc) {
   if (!m_enabled)
     return;
 
   assert(m_rec_insn.valid);
   assert(m_rec_insn.pc == pc);
 
+  m_rec_insn.next_pc = next_pc;
   m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
 
   drain_curr_record();
@@ -83,6 +85,7 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
   if (m_rec_insn.valid) {
     // the trap is caused by an instruction (sync exception)
     assert(m_rec_insn.pc == epc);
+    m_rec_insn.next_pc = new_pc;
     m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
     m_rec_insn.exception = true;
     drain_curr_record();
@@ -93,6 +96,7 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
     // to log this event, an artificial instruction is inserted
     // to distinguish it from the real, core fetched instruction, pc is set to all 1 and instruction is set to NULL
     m_rec_insn.pc = -1;
+    m_rec_insn.next_pc = new_pc;
     m_rec_insn.insn = null_insi;
     m_rec_insn.good = false;
     m_rec_insn.valid = true;

@@ -277,7 +277,7 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
   p->update_histogram(pc);
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-  p->get_dbg_tracer()->trace_after_insn_execute(pc);
+  p->get_dbg_tracer()->trace_after_insn_execute(pc, npc);
 #endif
 
 #ifdef RISCV_ENABLE_SIMPOINT

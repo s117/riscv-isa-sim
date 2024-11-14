@@ -46,6 +46,7 @@ typedef struct {
   bool exception;
 
   reg_t pc;
+  reg_t next_pc;
   insn_t insn;
   uint64_t seqno;
   uint64_t cycle;
@@ -143,7 +144,7 @@ public:
 
   void trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write);
 
-  void trace_after_insn_execute(reg_t pc);
+  void trace_after_insn_execute(reg_t pc, reg_t next_pc);
 
   void trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc);
 
