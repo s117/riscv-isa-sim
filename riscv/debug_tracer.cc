@@ -213,7 +213,7 @@ void debug_tracer_t::clear_curr_record() {
 }
 
 void debug_tracer_t::seqno_incr() {
-  if (unlikely(m_insn_seq & ((1ul << 24ul) - 1ul)) == 0ul) {
+  if (unlikely(m_insn_seq & ((1ul << 20ul) - 1ul)) == 0ul) {
     fprintf(stderr, "Traced 0x%" PRIX64 " instructions.\n", m_insn_seq);
   }
   ++m_insn_seq;
