@@ -1,4 +1,7 @@
 build*
+run*
+venv*
+*~
 *.gch
 .*.swp
 autom4te.cache/
@@ -8,5 +11,6 @@ config.log
 .cproject
 .project
 .settings
+.vscode
 .idea
 cmake-build-*
