@@ -4,7 +4,6 @@
 #include "config.h"
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-//#define __DBG_TRACE_DEBUG_OUTPUT
 
 #include <cstddef>
 #include <string>
@@ -71,54 +70,6 @@ public:
 class trace_output_null_t : public trace_output_t {
 public:
   void issue_insn(const insn_record_t &insn) final {};
-};
-
-class trace_output_direct_t : public trace_output_t {
-public:
-  explicit trace_output_direct_t(const std::string &filename_out);
-
-  ~trace_output_direct_t() override;
-
-  void issue_insn(const insn_record_t &insn) override { output_insn_record(insn); };
-
-private:
-  void output_insn_record(const insn_record_t &insn);
-
-  disassembler_t m_disassembler;
-  std::string m_trace_file_name;
-#ifdef __DBG_TRACE_DEBUG_OUTPUT
-  std::ofstream m_tr_ostream;
-#else
-  ogzstream m_tr_ostream;
-#endif
-};
-
-class trace_output_last_n_t : public trace_output_t {
-public:
-  trace_output_last_n_t(const std::string &filename_out, size_t n);
-
-  ~trace_output_last_n_t() override;
-
-  void issue_insn(const insn_record_t &insn) override;
-
-private:
-  void insn_rec_circ_buf_push(const insn_record_t &insn_rec);
-
-  insn_record_t *insn_rec_circ_buf_pop();
-
-  inline size_t next_idx(size_t i) {
-    // return (i + 1) % m_sz_buf;
-    auto nidx = i + 1;
-    return (nidx == m_sz_buf) ? 0 : nidx;
-  };
-
-  insn_record_t *m_insn_rec_circ_buf;
-  size_t m_sz_buf;
-  size_t m_tail; // wr at tail
-  size_t m_head; // rd at head
-  bool empty;
-
-  trace_output_direct_t m_direct_output;
 };
 
 /************* Main Tracer *************/

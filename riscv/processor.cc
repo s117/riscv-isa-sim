@@ -150,30 +150,6 @@ void processor_t::set_simpoint(bool enable, size_t interval)
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-void processor_t::enable_trace(size_t n)
-{
-  if (!dbg_tracer->enabled()) {
-    #ifdef __DBG_TRACE_DEBUG_OUTPUT
-    std::string trace_file_name = std::string("trace_proc_") + std::to_string(get_id()) + ".txt";
-    #else
-    std::string trace_file_name = std::string("trace_proc_") + std::to_string(get_id()) + ".gz";
-    #endif
-    trace_output_t *trace_outputter;
-    if (n != 0) {
-      trace_outputter = new trace_output_last_n_t(trace_file_name, n);
-    } else {
-      trace_outputter = new trace_output_direct_t(trace_file_name);
-    }
-    dbg_tracer->enable_trace(trace_outputter);
-  }
-}
-
-void processor_t::enable_insn_info_collection() {
-  if (!dbg_tracer->enabled()) {
-    dbg_tracer->enable_trace(new trace_output_null_t());
-  }
-}
-
 reg_t processor_t::rd_xpr(size_t rn, operand_t operand)
 {
   auto val = state.XPR[rn];

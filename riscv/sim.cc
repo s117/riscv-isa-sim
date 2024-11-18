@@ -191,15 +191,6 @@ void sim_t::set_simpoint(bool enable, size_t interval)
 }
 #endif
 
-#ifdef RISCV_ENABLE_DBG_TRACE
-void sim_t::enable_trace(size_t n)
-{
-  for (size_t i = 0; i < procs.size(); i++) {
-    procs[i]->enable_trace(n);
-  }
-}
-#endif
-
 void sim_t::set_procs_debug(bool value)
 {
   for (size_t i=0; i< procs.size(); i++)
