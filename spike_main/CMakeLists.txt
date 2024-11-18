@@ -8,6 +8,7 @@ set(
 
 add_executable(spike spike.cc)
 target_link_libraries(spike ${spike_main_subproject_deps})
+set_target_properties(spike PROPERTIES ENABLE_EXPORTS ON)
 
 add_executable(spike-dasm spike-dasm.cc)
 target_link_libraries(spike-dasm ${spike_main_subproject_deps})
