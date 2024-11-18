@@ -9,6 +9,7 @@
 class extension_t
 {
  public:
+  extension_t() : p(nullptr) {};
   virtual std::vector<insn_desc_t> get_instructions() = 0;
   virtual std::vector<disasm_insn_t*> get_disasms() = 0;
   virtual const char* name() = 0;
