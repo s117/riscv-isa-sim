@@ -1,4 +1,6 @@
 # RISCV
+cmake_minimum_required(VERSION 3.23)
+
 if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
     find_package(ZLIB)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -53,17 +55,20 @@ set(
         ${riscv_gen_srcs}
 )
 
+add_library(riscv-interface INTERFACE)
+target_link_libraries(riscv-interface INTERFACE ac_config)
+target_sources(riscv-interface INTERFACE
+        FILE_SET HEADERS
+        BASE_DIRS . ${CMAKE_CURRENT_BINARY_DIR} # ${CMAKE_CURRENT_BINARY_DIR} is to include the generated sources
+        FILES ${riscv_hdrs}
+)
+
 add_library(
         riscv STATIC
         ${riscv_srcs}
         ${riscv_hdrs}
 )
-
-target_include_directories(riscv PUBLIC .)
-# for including the generated code
-target_include_directories(riscv PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
-target_link_libraries(riscv ac_config)
+target_link_libraries(riscv riscv-interface)
 target_link_libraries(riscv ${CMAKE_DL_LIBS})
 target_link_libraries(riscv fesvr-static)
 target_link_libraries(riscv softfloat)
