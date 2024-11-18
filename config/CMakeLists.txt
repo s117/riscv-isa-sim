@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.23)
+
 set(
         ac_configure_gen_file_list
         ac_output_dir/config.h
@@ -37,23 +39,23 @@ set(
         --with-fesvr=${lib_fesvr_path}
 )
 
-if(DEFINED ENABLE_SIMPOINT)
-        set(
-                ISA_SIM_AC_CONFIGURE_ARGS
-                ${ISA_SIM_AC_CONFIGURE_ARGS}
-                --enable-simpoint
-        )
-        message("SimPoint BBV collecting support is enabled.")
-endif()
+if (DEFINED ENABLE_SIMPOINT)
+    set(
+            ISA_SIM_AC_CONFIGURE_ARGS
+            ${ISA_SIM_AC_CONFIGURE_ARGS}
+            --enable-simpoint
+    )
+    message("SimPoint BBV collecting support is enabled.")
+endif ()
 
 if (DEFINED ENABLE_DBG_TRACE)
-        set(
-                ISA_SIM_AC_CONFIGURE_ARGS
-                ${ISA_SIM_AC_CONFIGURE_ARGS}
-                --enable-dbg-trace
-        )
-        message("Instruction tracing support is enabled.")
-endif()
+    set(
+            ISA_SIM_AC_CONFIGURE_ARGS
+            ${ISA_SIM_AC_CONFIGURE_ARGS}
+            --enable-dbg-trace
+    )
+    message("Instruction tracing support is enabled.")
+endif ()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir)
 
@@ -65,23 +67,12 @@ add_custom_command(
         DEPENDS ${ac_configure_proj_def}
 )
 
-add_custom_command(
-        OUTPUT dummy.cc
-        COMMAND echo "#include \"config.h\"" > dummy.cc
-        VERBATIM
-)
-
-add_library(
-        ac_config STATIC
-        ac_output_dir/config.h
-        dummy.cc
-)
-
-target_include_directories(ac_config PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir)
-
-target_compile_definitions(
-        ac_config
-        PUBLIC PREFIX="${PREFIX}"
+add_library(ac_config INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir/config.h)
+target_compile_definitions(ac_config INTERFACE PREFIX="${PREFIX}")
+target_sources(ac_config INTERFACE
+        FILE_SET HEADERS
+        BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir
+        FILES ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir/config.h
 )
 
 add_dependencies(ac_config fesvr-lib-dir)
