@@ -10,8 +10,8 @@ add_compile_options(-Wall -Wno-unused)
 # When calling the configure script of isa-sim and fesvr, this path is used as:
 #     configure --prefix=${PREFIX} ...
 if (NOT DEFINED PREFIX)
-    set(PREFIX ${PROJECT_SOURCE_DIR}/../install-linux)
-    message(WARNING "PREFIX is not defined, use default: ${PROJECT_SOURCE_DIR}/../install-linux")
+    get_filename_component(PREFIX ${PROJECT_SOURCE_DIR}/../install-linux ABSOLUTE)
+    message(WARNING "PREFIX is not defined, using default: ${PREFIX}")
 else ()
     message("PREFIX is set to: ${PREFIX}")
 endif ()
