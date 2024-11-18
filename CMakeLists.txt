@@ -1,13 +1,9 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.23)
 
 project(riscv-isa-sim)
 
-if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
-    set(CMAKE_CXX_STANDARD 11)
-    set(CMAKE_CXX_EXTENSIONS OFF)
-else ()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif ()
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-Wall -Wno-unused)
 
@@ -16,7 +12,7 @@ add_compile_options(-Wall -Wno-unused)
 if (NOT DEFINED PREFIX)
     set(PREFIX ${PROJECT_SOURCE_DIR}/../install-linux)
     message(WARNING "PREFIX is not defined, use default: ${PROJECT_SOURCE_DIR}/../install-linux")
-else()
+else ()
     message("PREFIX is set to: ${PREFIX}")
 endif ()
 

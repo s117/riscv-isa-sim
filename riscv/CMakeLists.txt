@@ -1,12 +1,9 @@
 # RISCV
 cmake_minimum_required(VERSION 3.23)
 
-if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
-    find_package(ZLIB)
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-    find_package(Threads REQUIRED)
-endif ()
-
+find_package(ZLIB)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
 include(./generating_rules.cmake)
 
@@ -69,18 +66,8 @@ add_library(
         ${riscv_hdrs}
 )
 target_link_libraries(riscv riscv-interface)
-target_link_libraries(riscv ${CMAKE_DL_LIBS})
 target_link_libraries(riscv fesvr-static)
 target_link_libraries(riscv softfloat)
-
-
-if ("${CMAKE_VERSION}" VERSION_GREATER "3.0.0")
-    target_link_libraries(riscv ZLIB::ZLIB)
-    target_link_libraries(riscv Threads::Threads)
-else ()
-    target_link_libraries(riscv z)
-    target_link_libraries(riscv pthread)
-endif ()
-
-
-#target_compile_options(riscv PRIVATE "-fPIC")
+target_link_libraries(riscv ZLIB::ZLIB)
+target_link_libraries(riscv Threads::Threads)
+target_link_libraries(riscv ${CMAKE_DL_LIBS})
