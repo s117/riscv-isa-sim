@@ -1,10 +1,6 @@
 #include "extension.h"
 #include "trap.h"
 
-extension_t::~extension_t()
-{
-}
-
 void extension_t::illegal_instruction()
 {
   throw trap_illegal_instruction();
