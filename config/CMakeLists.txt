@@ -39,7 +39,7 @@ set(
         --with-fesvr=${lib_fesvr_path}
 )
 
-if (DEFINED ENABLE_SIMPOINT)
+if (ENABLE_SIMPOINT)
     set(
             ISA_SIM_AC_CONFIGURE_ARGS
             ${ISA_SIM_AC_CONFIGURE_ARGS}
@@ -48,7 +48,7 @@ if (DEFINED ENABLE_SIMPOINT)
     message("SimPoint BBV collecting support is enabled.")
 endif ()
 
-if (DEFINED ENABLE_DBG_TRACE)
+if (ENABLE_DBG_TRACE)
     set(
             ISA_SIM_AC_CONFIGURE_ARGS
             ${ISA_SIM_AC_CONFIGURE_ARGS}
