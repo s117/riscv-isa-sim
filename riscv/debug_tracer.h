@@ -73,6 +73,66 @@ public:
   void issue_insn(const insn_record_t &insn) final {};
 };
 
+class trace_last_n_wrapper_t : public trace_output_t {
+public:
+  trace_last_n_wrapper_t(size_t n, std::unique_ptr<trace_output_t> wrapped_output)
+      : m_insn_rec_circ_buf(n),
+        m_sz_buf(n),
+        m_tail(0),
+        m_head(0),
+        m_empty(true),
+        m_wrapped_output(std::move(wrapped_output)) {};
+
+  ~trace_last_n_wrapper_t() override;
+
+  void issue_insn(const insn_record_t &insn) override;
+
+private:
+  size_t next_idx(size_t i) const {
+    // return (i + 1) % m_sz_buf;
+    auto nidx = i + 1;
+    return (nidx == m_sz_buf) ? 0 : nidx;
+  }
+
+  void insn_rec_circ_buf_push(const insn_record_t &insn_rec) {
+    m_insn_rec_circ_buf[m_tail] = insn_rec;
+
+    if (likely(m_tail == m_head)) {
+      if (unlikely(m_empty)) {
+        m_tail = next_idx(m_tail);
+        m_empty = false;
+      }
+      else {
+        m_head = m_tail = next_idx(m_tail);
+      }
+    }
+    else {
+      m_tail = next_idx(m_tail);
+    }
+  }
+
+  insn_record_t *insn_rec_circ_buf_pop() {
+    insn_record_t *ret_ptr = nullptr;
+
+    if (!m_empty) {
+      ret_ptr = &m_insn_rec_circ_buf[m_head];
+      m_head = next_idx(m_head);
+      if (m_head == m_tail)
+        m_empty = true;
+    }
+
+    return ret_ptr;
+  }
+
+  std::vector<insn_record_t> m_insn_rec_circ_buf;
+  size_t m_sz_buf;
+  size_t m_tail; // wr at tail
+  size_t m_head; // rd at head
+  bool m_empty;
+
+  std::unique_ptr<trace_output_t> m_wrapped_output;
+};
+
 /************* Main Tracer *************/
 class debug_tracer_t {
 public:

@@ -218,4 +218,18 @@ const insn_record_t &debug_tracer_t::get_current_insn_info() {
   return m_rec_insn;
 }
 
+/************* Trace Output *************/
+void trace_last_n_wrapper_t::issue_insn(const insn_record_t &insn) {
+  insn_rec_circ_buf_push(insn);
+}
+
+trace_last_n_wrapper_t::~trace_last_n_wrapper_t() {
+  for (
+    insn_record_t *p = insn_rec_circ_buf_pop();
+    p != nullptr;
+    p = insn_rec_circ_buf_pop()) {
+    m_wrapped_output->issue_insn(*p);
+  }
+}
+
 #endif /* RISCV_ENABLE_DBG_TRACE */
