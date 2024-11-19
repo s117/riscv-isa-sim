@@ -86,6 +86,8 @@ public:
 
   void register_trace_output(std::unique_ptr<trace_output_t> trace_output);
 
+  void clear_trace_output() { m_trace_output.clear(); }
+
   void trace_before_insn_ic_fetch(reg_t pc);
 
   void trace_before_insn_execute(reg_t pc, insn_t insn);
