@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <string>
 #include <iostream>
+#include <memory>
 #include "trap.h"
 #include "gzstream.h"
 #include "disasm.h"
@@ -75,15 +76,15 @@ public:
 /************* Main Tracer *************/
 class debug_tracer_t {
 public:
-  explicit debug_tracer_t(processor_t *target_processor);
+  explicit debug_tracer_t(processor_t &target_processor);
 
-  virtual ~debug_tracer_t();
+  ~debug_tracer_t() = default;
 
   void enable_trace(uint64_t skip_amount = 0);
 
   void disable_trace();
 
-  void register_trace_output(trace_output_t *trace_output);
+  void register_trace_output(std::unique_ptr<trace_output_t> trace_output);
 
   void trace_before_insn_ic_fetch(reg_t pc);
 
@@ -119,9 +120,9 @@ private:
 
   uint64_t m_enabling_instret;
   bool m_enabled;
-  processor_t *m_tgt_proc;
+  processor_t &m_tgt_proc;
   insn_record_t m_rec_insn;
-  std::vector<trace_output_t *> m_trace_output;
+  std::vector<std::unique_ptr<trace_output_t>> m_trace_output;
 };
 
 #endif /* RISCV_ENABLE_DBG_TRACE */

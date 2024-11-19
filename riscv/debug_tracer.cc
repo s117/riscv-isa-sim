@@ -13,23 +13,18 @@
 #include "mmu.h"
 
 /************* Main Tracer *************/
-debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_rec_insn() {
+debug_tracer_t::debug_tracer_t(processor_t &target_processor)
+    : m_insn_seq(0),
+      m_instret(0),
+      m_enabling_instret(UINT64_MAX),
+      m_enabled(false),
+      m_tgt_proc(target_processor),
+      m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
-  m_tgt_proc = target_processor;
-  m_enabling_instret = UINT64_MAX;
-  m_enabled = false;
-  m_insn_seq = 0;
-  m_instret = 0;
-}
-
-debug_tracer_t::~debug_tracer_t() {
-  for (auto output: m_trace_output) {
-    delete output;
-  }
 }
 
 void debug_tracer_t::enable_trace(uint64_t skip_amount) {
-  m_instret = m_tgt_proc->get_state()->count;
+  m_instret = m_tgt_proc.get_state()->count;
   m_enabling_instret = m_instret + skip_amount;
 }
 
@@ -37,8 +32,8 @@ void debug_tracer_t::disable_trace() {
   m_enabling_instret = UINT64_MAX;
 }
 
-void debug_tracer_t::register_trace_output(trace_output_t *trace_output) {
-  if (trace_output) m_trace_output.push_back(trace_output);
+void debug_tracer_t::register_trace_output(std::unique_ptr<trace_output_t> trace_output) {
+  if (trace_output) m_trace_output.emplace_back(std::move(trace_output));
 }
 
 
@@ -77,7 +72,7 @@ void debug_tracer_t::trace_after_insn_execute(reg_t pc, reg_t next_pc) {
   assert(m_rec_insn.pc == pc);
 
   m_rec_insn.next_pc = next_pc;
-  m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
+  m_rec_insn.post_exe_state = *m_tgt_proc.get_state();
 
   drain_curr_record();
 }
@@ -89,7 +84,7 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
     // the trap is caused by an instruction (sync exception)
     assert(m_rec_insn.pc == epc);
     m_rec_insn.next_pc = new_pc;
-    m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
+    m_rec_insn.post_exe_state = *m_tgt_proc.get_state();
     m_rec_insn.exception = true;
     drain_curr_record();
   } else {
@@ -106,7 +101,7 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
     m_rec_insn.seqno = m_insn_seq;
     m_rec_insn.cycle = m_insn_seq;
     m_rec_insn.instret = m_instret;
-    m_rec_insn.post_exe_state = *m_tgt_proc->get_state();
+    m_rec_insn.post_exe_state = *m_tgt_proc.get_state();
     m_rec_insn.exception = true;
     drain_curr_record();
   }
@@ -203,7 +198,7 @@ void debug_tracer_t::trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val,
 
 void debug_tracer_t::drain_curr_record() {
   if (m_rec_insn.valid) {
-    for (auto output: m_trace_output)
+    for (auto &output: m_trace_output)
       output->issue_insn(m_rec_insn);
     seqno_incr();
   }

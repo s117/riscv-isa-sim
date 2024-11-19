@@ -31,7 +31,7 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
     id(_id), run(false), debug(false), serialized(false), waiting_host(false)
 {
 #ifdef RISCV_ENABLE_DBG_TRACE
-  dbg_tracer = new debug_tracer_t(this);
+  dbg_tracer = new debug_tracer_t(*this);
 #endif
 
   reset(true);
