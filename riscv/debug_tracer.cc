@@ -16,6 +16,7 @@
 debug_tracer_t::debug_tracer_t(processor_t *target_processor) : m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
   m_tgt_proc = target_processor;
+  m_enabling_instret = UINT64_MAX;
   m_enabled = false;
   m_insn_seq = 0;
   m_instret = 0;
@@ -27,10 +28,13 @@ debug_tracer_t::~debug_tracer_t() {
   }
 }
 
-void debug_tracer_t::enable_trace(trace_output_t *trace_output) {
-  register_trace_output(trace_output);
+void debug_tracer_t::enable_trace(uint64_t skip_amount) {
   m_instret = m_tgt_proc->get_state()->count;
-  m_enabled = true;
+  m_enabling_instret = m_instret + skip_amount;
+}
+
+void debug_tracer_t::disable_trace() {
+  m_enabling_instret = UINT64_MAX;
 }
 
 void debug_tracer_t::register_trace_output(trace_output_t *trace_output) {
@@ -39,8 +43,9 @@ void debug_tracer_t::register_trace_output(trace_output_t *trace_output) {
 
 
 void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
-  if (!m_enabled)
+  if (!(m_enabled = m_enabling_instret <= m_instret)) {
     return;
+  }
 
   m_rec_insn.pc = pc;
   m_rec_insn.next_pc = 0;
@@ -211,9 +216,6 @@ void debug_tracer_t::clear_curr_record() {
 }
 
 void debug_tracer_t::seqno_incr() {
-  if (unlikely(m_insn_seq & ((1ul << 20ul) - 1ul)) == 0ul) {
-    fprintf(stderr, "Traced 0x%" PRIX64 " instructions.\n", m_insn_seq);
-  }
   ++m_insn_seq;
 }
 

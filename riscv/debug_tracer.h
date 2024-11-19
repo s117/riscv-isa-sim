@@ -79,7 +79,9 @@ public:
 
   virtual ~debug_tracer_t();
 
-  void enable_trace(trace_output_t *trace_output = nullptr);
+  void enable_trace(uint64_t skip_amount = 0);
+
+  void disable_trace();
 
   void register_trace_output(trace_output_t *trace_output);
 
@@ -115,6 +117,7 @@ private:
   uint64_t m_insn_seq;
   uint64_t m_instret;
 
+  uint64_t m_enabling_instret;
   bool m_enabled;
   processor_t *m_tgt_proc;
   insn_record_t m_rec_insn;
