@@ -20,6 +20,9 @@ endif ()
 set(CMAKE_CXX_FLAGS_RELO3 "-O3 -g")
 set(CMAKE_C_FLAGS_RELO3 "-O3 -g")
 
+set(CMAKE_CXX_FLAGS_RELOG "-Og -g")
+set(CMAKE_C_FLAGS_RELOG "-Og -g")
+
 add_subdirectory(riscv-fesvr)
 
 add_subdirectory(config)
