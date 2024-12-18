@@ -71,33 +71,33 @@ class insn_t
 public:
   insn_t() = default;
   insn_t(insn_bits_t bits) : b(bits) {}
-  insn_bits_t bits() { return b; }
-  int length() { return insn_length(b); }
-  int64_t i_imm() { return int64_t(b) >> 20; }
-  int64_t s_imm() { return x(7, 5) + (xs(25, 7) << 5); }
-  int64_t sb_imm() { return (x(8, 4) << 1) + (x(25,6) << 5) + (x(7,1) << 11) + (imm_sign() << 12); }
-  int64_t u_imm() { return int64_t(b) >> 12 << 12; }
-  int64_t uj_imm() { return (x(21, 10) << 1) + (x(20, 1) << 11) + (x(12, 8) << 12) + (imm_sign() << 20); }
-  uint64_t rd() { return x(7, 5); }
-  uint64_t rs1() { return x(15, 5); }
-  uint64_t rs2() { return x(20, 5); }
-  uint64_t rs3() { return x(27, 5); }
-  uint64_t rm() { return x(12, 3); }
-  uint64_t csr() { return x(20, 12); }
-  uint64_t opcode() {return x(0, 7); }
-  uint64_t funct3() {return x(12, 3); }
-  uint64_t funct7() {return x(25, 7); }
-  uint64_t funct12() {return x(20, 12); }
-  uint64_t funct5() {return x(27, 5); }
-  uint64_t fmt() {return x(25, 2); }
-  uint64_t shamt() {return x(20, 6); }
-  uint32_t ldst_size() {return (1 << x(12,2)); }
-  bool     ldst_sign() {return !x(14,1); }  // unsigned if 1 signed if 0
+  insn_bits_t bits() const { return b; }
+  int length() const { return insn_length(b); }
+  int64_t i_imm() const { return int64_t(b) >> 20; }
+  int64_t s_imm() const { return x(7, 5) + (xs(25, 7) << 5); }
+  int64_t sb_imm() const { return (x(8, 4) << 1) + (x(25,6) << 5) + (x(7,1) << 11) + (imm_sign() << 12); }
+  int64_t u_imm() const { return int64_t(b) >> 12 << 12; }
+  int64_t uj_imm() const { return (x(21, 10) << 1) + (x(20, 1) << 11) + (x(12, 8) << 12) + (imm_sign() << 20); }
+  uint64_t rd() const { return x(7, 5); }
+  uint64_t rs1() const { return x(15, 5); }
+  uint64_t rs2() const { return x(20, 5); }
+  uint64_t rs3() const { return x(27, 5); }
+  uint64_t rm() const { return x(12, 3); }
+  uint64_t csr() const { return x(20, 12); }
+  uint64_t opcode() const {return x(0, 7); }
+  uint64_t funct3() const {return x(12, 3); }
+  uint64_t funct7() const {return x(25, 7); }
+  uint64_t funct12() const {return x(20, 12); }
+  uint64_t funct5() const {return x(27, 5); }
+  uint64_t fmt() const {return x(25, 2); }
+  uint64_t shamt() const {return x(20, 6); }
+  uint32_t ldst_size() const {return (1 << x(12,2)); }
+  bool     ldst_sign() const {return !x(14,1); }  // unsigned if 1 signed if 0
 private:
   insn_bits_t b;
-  uint64_t x(int lo, int len) { return (b >> lo) & ((insn_bits_t(1) << len)-1); }
-  uint64_t xs(int lo, int len) { return int64_t(b) << (64-lo-len) >> (64-len); }
-  uint64_t imm_sign() { return xs(63, 1); }
+  uint64_t x(int lo, int len) const { return (b >> lo) & ((insn_bits_t(1) << len)-1); }
+  uint64_t xs(int lo, int len) const { return int64_t(b) << (64-lo-len) >> (64-len); }
+  uint64_t imm_sign() const { return xs(63, 1); }
 };
 
 template <class T, size_t N, bool zero_reg>
