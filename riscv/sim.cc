@@ -10,7 +10,6 @@
 #include <signal.h>
 #include <iostream>
 #include <fstream>
-#include "fesvr/gzstream.h"
 
 bool logging_on             = false;
 
@@ -25,7 +24,7 @@ static void handle_signal(int sig)
 
 sim_t::sim_t(size_t nprocs, size_t mem_mb, const std::vector<std::string>& args)
   : htif(new htif_isasim_t(this, args)), procs(std::max(nprocs, size_t(1))),
-    current_step(0), current_proc(0), debug(false), checkpointing_enabled(false)
+    current_step(0), current_proc(0), debug(false)
 {
   signal(SIGINT, &handle_signal);
   // allocate target machine's memory, shrinking it as necessary
@@ -195,113 +194,4 @@ void sim_t::set_procs_debug(bool value)
 {
   for (size_t i=0; i< procs.size(); i++)
     procs[i]->set_debug(value);
-}
-
-void sim_t::init_checkpoint()
-{
-  checkpointing_enabled = true;
-  htif->start_checkpointing();
-}
-
-bool sim_t::create_checkpoint(std::string checkpoint_file)
-{
-  ogzstream proc_chkpt;
-
-  // Check if file name has .gz extension. If not, append .gz to the name
-  if(checkpoint_file.substr(checkpoint_file.find_last_of(".") + 1) != "gz") {
-    checkpoint_file = checkpoint_file+".gz";
-  }
-
-  proc_chkpt.open(checkpoint_file.c_str(), std::ios::out | std::ios::binary);
-  if ( ! proc_chkpt.good()) {
-    std::cerr << "ERROR: Opening file `" << checkpoint_file << "' failed.\n";
-    exit(0);
-  }
-
-  std::cerr << "Checkpointing HTIF state..." << std::endl;
-  htif->output_checkpointing(proc_chkpt);
-
-  std::cerr << "Checkpointing memory state" << std::endl;
-  create_memory_checkpoint(proc_chkpt);
-
-  std::cerr << "Checkpointing register state" << std::endl;
-  create_register_checkpoint(proc_chkpt);
-
-  if (!proc_chkpt.good()) {
-    std::cerr << "Fail to create the checkpoint: bad output stream state" << std::endl;
-    exit(-1);
-  }
-  proc_chkpt.close();
-  std::cerr << "Created processor checkpoint to " << checkpoint_file << std::endl;
-
-  return true;
-}
-
-bool sim_t::restore_checkpoint(std::string restore_file)
-{
-  igzstream restore_chkpt;
-
-  // Check if file name has .gz extension. If not, append .gz to the name
-  if(restore_file.substr(restore_file.find_last_of(".") + 1) != "gz") {
-    restore_file = restore_file+".gz";
-  }
-
-  restore_chkpt.open (restore_file.c_str(), std::ios::in | std::ios::binary);
-  if ( ! restore_chkpt.good()) {
-    std::cerr << "ERROR: Opening file `" << restore_file << "' failed.\n";
-	  return false;
-  }
-
-  std::cerr << "Trying to restore HTIF state from " << restore_file << std::endl;
-  // This tick will restore the checkpoint.
-  bool htif_return = htif->restore_checkpoint(restore_chkpt);
-  std::cerr << "Done restoring HTIF state" << std::endl;
-
-  std::cerr << "Trying to restore memory from " << restore_file << std::endl;
-  restore_memory_checkpoint(restore_chkpt);
-  std::cerr << "Done restoring memory" << std::endl;
-
-  std::cerr << "Trying to restore registers from " << restore_file << std::endl;
-  restore_proc_checkpoint(restore_chkpt);
-  restore_chkpt.close();
-  std::cerr << "Done restoring registers" << std::endl;
-
-  return htif_return;
-}
-
-void sim_t::create_memory_checkpoint(std::ostream& memory_chkpt)
-{
-  uint64_t signature = 0xbaadbeefdeadbeef;
-  memory_chkpt.write((char*)&signature,8);
-  memory_chkpt.write((char*)&memsz,sizeof(memsz));
-  memory_chkpt.write(mem,memsz);
-}
-
-void sim_t::create_register_checkpoint(std::ostream& proc_chkpt)
-{
-  state_t *state = procs[current_proc]->get_state();
-  uint64_t signature = 0xdeadbeefbaadbeef;
-  proc_chkpt.write((char*)&signature,8);
-  proc_chkpt.write((char *)state,sizeof(state_t));
-}
-
-void sim_t::restore_memory_checkpoint(std::istream& memory_chkpt)
-{
-  uint64_t signature;
-  uint64_t chkpt_memsz;
-  memory_chkpt.read((char*)&signature,8);
-  assert(signature == 0xbaadbeefdeadbeef);
-  // Check that the checkpointed memory size the current simulator memory size are same
-  memory_chkpt.read((char*)&chkpt_memsz,sizeof(chkpt_memsz));
-  assert(memsz == chkpt_memsz);
-  memory_chkpt.read(mem,memsz);
-}
-
-void sim_t::restore_proc_checkpoint(std::istream& proc_chkpt)
-{
-  state_t *state = procs[0]->get_state();
-  uint64_t signature;
-  proc_chkpt.read((char*)&signature,8);
-  assert(signature == 0xdeadbeefbaadbeeful);
-  proc_chkpt.read((char *)state,sizeof(state_t));
 }

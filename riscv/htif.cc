@@ -21,7 +21,6 @@ extern bool logging_on;
 htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
   : htif_pthread_t(args), sim(_sim), reset(true), seqno(1)
 {
-    checkpointing_active = false;
 }
 
 htif_isasim_t::~htif_isasim_t() {}
@@ -85,14 +84,6 @@ void htif_isasim_t::tick_once()
       for (size_t i = 0; i < hdr.data_size; i++)
         buf[i] = sim->debug_mmu->load_uint64((hdr.addr+i)*HTIF_DATA_ALIGN);
 
-      if(checkpointing_active){
-        htif_trans_live << "READ_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
-        for (size_t i = 0; i < hdr.data_size; i++){
-          htif_trans_live << buf[i] << " ";
-        }
-        htif_trans_live << std::endl;
-      }
-
       send(buf, hdr.data_size * sizeof(buf[0]));
       break;
     }
@@ -103,14 +94,6 @@ void htif_isasim_t::tick_once()
       const uint64_t* buf = (const uint64_t*)p.get_payload();
       for (size_t i = 0; i < hdr.data_size; i++)
         sim->debug_mmu->store_uint64((hdr.addr+i)*HTIF_DATA_ALIGN, buf[i]);
-
-      if(checkpointing_active){
-        htif_trans_live << "WRITE_MEM" << " " << hdr.addr << " " << hdr.data_size << std::endl;
-        for (size_t i = 0; i < hdr.data_size; i++){
-          htif_trans_live << buf[i] << " ";
-        }
-        htif_trans_live << std::endl;
-      }
 
       packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, 0);
       send(&ack, sizeof(ack));
@@ -133,9 +116,6 @@ void htif_isasim_t::tick_once()
       if (coreid == 0xFFFFF) // system control register space
       {
         uint64_t scr = sim->get_scr(regno);
-        if(checkpointing_active){
-          htif_trans_live << "MOD_SCR " << coreid << " " << regno << " " << scr << " " << scr << std::endl;
-        }
         send(&scr, sizeof(scr));
         break;
       }
@@ -181,12 +161,6 @@ void htif_isasim_t::tick_once()
           abort();
       }
 
-      // Print TOHOST content only when something significant happens)
-      if((regno != (CSR_TOHOST & 0x1f)) || ((old_val != 0) || (old_val != new_val))){
-        if(checkpointing_active){
-          htif_trans_live << "MOD_SCR " << coreid << " " << regno << " " << old_val << " " << new_val << std::endl;
-        }
-      }
       send(&old_val, sizeof(old_val));
       break;
     }
@@ -373,138 +347,4 @@ bool htif_isasim_t::done()
   if (reset)
     return false;
   return !sim->running();
-}
-
-void htif_isasim_t::setup_replay_state(replay_pkt_t *hdr)
-{
-
-  //hdr->dump();
-  if(hdr->command == READ_MEM)
-  {
-    for (size_t i = 0; i < hdr->data_size; i++)
-      sim->debug_mmu->store_uint64((hdr->addr+i)*HTIF_DATA_ALIGN, hdr->data[i]);
-  }
-  else  if(hdr->command == MOD_SCR)
-  {
-    processor_t* proc = sim->get_core(hdr->coreid);
-  // TODO mapping HTIF regno to CSR[4:0] is arbitrary; consider alternative
-    switch (hdr->regno)
-    {
-      case CSR_TOHOST & 0x1f:
-        proc->get_state()->tohost = hdr->old_regval;
-        break;
-      case CSR_FROMHOST & 0x1f:
-        proc->set_fromhost(hdr->old_regval);
-        break;
-      default:
-        abort();
-    }
-
-  }
-}
-
-//bool htif_isasim_t::restore_checkpoint(std::string restore_file)
-bool htif_isasim_t::restore_checkpoint(std::istream& restore)
-{
-  if (done())
-    return false;
-
-  if(reset){
-    fprintf(stderr,"****Initializing the processor system****\n");
-  }
-
-  // If reset is set as true, which it is during initialization, the HTIF host module sends a bunch
-  // of packets to initialize memory and processor state. Keep stepping the HTIF for init sequence
-  // to complete before returning control to the caller. The HTIF host module sets reset to low once
-  // the init sequence is complete.
-  // If reset is low (normal operation) tick only once to complete a single pending transaction
-  //do tick_once(); while (reset);
-
-  FILE* restore_log = fopen("restore.htif","w");
-
-  std::string token1;
-  reg_t token2, token3;
-  replay_pkt_t pkt;
-
-  while(restore.good())
-  {
-    restore >> token1 >> token2 >> token3;
-    fprintf(restore_log,"Reading line: %s %ld %ld\n",token1.c_str(),token2,token3);
-    if(!token1.compare("READ_MEM"))
-    {
-
-      fprintf(restore_log,"In READ_MEM\n");
-      // Create the data packet
-      pkt.command = READ_MEM;
-      pkt.addr = token2;
-      pkt.data_size = token3;
-      for(unsigned int i=0; i < token3; i++)
-        restore >> pkt.data[i];
-    }
-    else if(!token1.compare("MOD_SCR"))
-    {
-      fprintf(restore_log,"In MOD_SCR\n");
-      // Update packet with SCR values
-      pkt.command = MOD_SCR;
-      pkt.coreid = token2;
-      pkt.regno = token3;
-      restore >> pkt.old_regval;
-      restore >> pkt.new_regval;
-    }
-    else if(!token1.compare("END_HTIF_CHECKPOINT"))
-    {
-      // HTIF checkpoint restore complete
-      //fprintf(stderr,"Done restoring HTIF state\n");
-      //Read in the rest of the line so that correct token is read in the next iteration
-      std::string dummy_line;
-      std::getline(restore,dummy_line);
-      // Must tick to maintain the sequence of HTIF operations
-      tick_once();
-      break;
-    }
-    else
-    {
-      //Read in the rest of the line so that correct token is read in the next iteration
-      std::string dummy_line;
-      std::getline(restore,dummy_line);
-      // Must tick to maintain the sequence of HTIF operations
-      tick_once();
-      continue;
-    }
-    // Setup the system state and the tick HTIF once
-    setup_replay_state(&pkt);
-    tick_once();
-  }
-
-  fclose(restore_log);
-
-  return true;
-
-}
-
-void htif_isasim_t::start_checkpointing()
-{
-  checkpointing_active = true;
-}
-
-void htif_isasim_t::output_checkpointing(std::ostream& checkpoint_file)
-{
-  if(checkpointing_active){
-    if (!this->htif_trans_live.good()) {
-      std::cerr << "ERROR: Corrupted HTIF live stream, state = " << this->htif_trans_live.rdstate() << std::endl;
-      exit(1);
-    }
-
-    // record the live stream
-    this->htif_trans_recorded.append(this->htif_trans_live.rdbuf()->str());
-
-    // clear the live stream
-    this->htif_trans_live.clear();
-    this->htif_trans_live.str(std::string());
-
-    // dump the recorded HTIF transactions
-    checkpoint_file << this->htif_trans_recorded;
-    checkpoint_file << "END_HTIF_CHECKPOINT 0 0 0" << std::endl;
-  }
-
 }

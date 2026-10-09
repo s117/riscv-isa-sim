@@ -4,7 +4,6 @@
 #include "htif.h"
 #include "cachesim.h"
 #include "extension.h"
-#include "fesvr/ckpt_desc_reader.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
 #include <stdio.h>
@@ -27,15 +26,16 @@ static void help()
   fprintf(stderr, "  -g                 Track histogram of PCs\n");
   fprintf(stderr, "  -s<interval>       Dump basic block vector profile for Simpoint with specified interval\n");
   fprintf(stderr, "  -e<n>              Stop the simulation once executed <n> instructions.\n");
-  fprintf(stderr, "  -c<ckpt-gz-file>   Restore from a checkpoint.\n");
   fprintf(stderr, "\n");
   fprintf(stderr, "  --ic=<S>:<W>:<B>   Instantiate a cache model with S sets,\n");
   fprintf(stderr, "  --dc=<S>:<W>:<B>     W ways, and B-byte blocks (with S and\n");
   fprintf(stderr, "  --l2=<S>:<W>:<B>     B both powers of 2).\n");
   fprintf(stderr, "  --extension=<name> Specify RoCC Extension\n");
   fprintf(stderr, "  --extlib=<name>    Shared library to load\n");
-  fprintf(stderr, "  --make-checkpoint=<ckpt-desc-file>\n");
-  fprintf(stderr, "                     Create checkpoints as directed by the description files.\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Checkpoints are created and loaded by the FESVR, see its options\n");
+  fprintf(stderr, "  +create-checkpoint=<ckpt-desc-file> and +load-checkpoint=<ckpt-file>,\n");
+  fprintf(stderr, "  both of which require +dev-traffic-replay=<recording>.\n");
   exit(1);
 }
 
@@ -59,8 +59,6 @@ int main(int argc, char** argv)
   bool histogram = false;
   bool simpoint = false;
   size_t simpoint_interval = 100000000;
-  bool checkpoint = false;
-  size_t checkpoint_skip_amt = 0;
   size_t nprocs = 1;
   size_t mem_mb = 0;
   std::unique_ptr<icache_sim_t> ic;
@@ -69,8 +67,6 @@ int main(int argc, char** argv)
   std::function<extension_t*()> extension;
 
   uint64_t stop_amt           = NO_STOP;
-  std::string checkpoint_file = "";
-  std::string checkpoint_desc_file = "";
 
   option_parser_t parser;
   parser.help(&help);
@@ -81,8 +77,6 @@ int main(int argc, char** argv)
   parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
   parser.option('m', 0, 1, [&](const char* s){mem_mb = atoi(s);});
   parser.option('e', 0, 1, [&](const char* s){stop_amt = atoll(s);});
-  parser.option(0, "make-checkpoint", 1, [&](const char* s){checkpoint = true; checkpoint_desc_file = s;});
-  parser.option('c', 0, 1, [&](const char* s){checkpoint_file = s;});
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
   parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
@@ -124,57 +118,13 @@ int main(int argc, char** argv)
 
   int htif_code = true;
 
-  if(checkpoint && (checkpoint_file == ""))
-  {
-    checkpoint_file = "checkpoint_"+std::to_string(checkpoint_skip_amt);
-  }
-
-  // Initialize the processor before dumping/restoring checkpoint
+  // Initialize the processor
   s.boot();
 
-  if (checkpoint) { // Runs Spike in checkpoint mode
-    s.init_checkpoint();
-    // Load the checkpoint description
-    ckpt_desc_list_t ckpt_descs;
-    try {
-      ckpt_descs = ckpt_desc_file_read(std::string(checkpoint_desc_file));
-      ckpt_desc_print(ckpt_descs);
-    } catch (std::runtime_error &ex) {
-      std::cout << "Fail to load checkpoint description file, reason:\n" << ex.what() << std::endl;
-      exit(-1);
-    }
-    size_t amt_ran = 0;
-
-    for (auto &it : ckpt_descs) {
-      size_t step = it.second - amt_ran;
-      fprintf(stderr, "Skipping for %lu instructions before next checkpointing\n",step);
-      htif_code = s.run(step);
-      // Stop simulation if HTIF returns false
-      if(!htif_code) return htif_code;
-
-      fprintf(stderr, "Creating Checkpoint\n");
-      htif_code = s.create_checkpoint(it.first);
-      // Stop simulation if HTIF returns false
-      if(!htif_code){
-        fprintf(stderr, "Checkpoint Creation Failed: HTIF Exit Code %d\n",htif_code);
-        return htif_code;
-      }
-
-      amt_ran += step;
-    }
-
-    return 0;
-  } else { // Run Spike in normal mode
-    if (!checkpoint_file.empty()) { // Starting from a checkpoint?
-      fprintf(stderr, "Restoring checkpoint from %s\n",checkpoint_file.c_str());
-      s.restore_checkpoint(checkpoint_file);
-    }
-
-    if (stop_amt == NO_STOP) {
-      htif_code = s.run();
-    } else {
-      htif_code = s.run(stop_amt);
-    }
+  if (stop_amt == NO_STOP) {
+    htif_code = s.run();
+  } else {
+    htif_code = s.run(stop_amt);
   }
 
   return htif_code;

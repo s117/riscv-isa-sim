@@ -7,7 +7,6 @@
 #include <string>
 #include <memory>
 #include <fstream>
-#include "fesvr/gzstream.h"
 #include "processor.h"
 #include "mmu.h"
 
@@ -49,10 +48,6 @@ public:
   size_t num_cores() { return procs.size(); }
   processor_t* get_core(size_t i) { return procs.at(i); }
 
-  void init_checkpoint();
-  bool create_checkpoint(std::string checkpoint_file);
-  bool restore_checkpoint(std::string restore_file);
-
   // read one of the system control registers
   reg_t get_scr(int which);
 
@@ -69,7 +64,6 @@ private:
   size_t current_proc;
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
-  bool checkpointing_enabled;
 
   // presents a prompt for introspection into the simulation
   void interactive();
@@ -92,12 +86,6 @@ private:
   reg_t get_tohost(const std::vector<std::string>& args);
 
   friend class htif_isasim_t;
-
-  void create_memory_checkpoint(std::ostream& memory_chkpt);
-  void restore_memory_checkpoint(std::istream& memory_chkpt);
-  void create_register_checkpoint(std::ostream& proc_chkpt);
-  void restore_proc_checkpoint(std::istream& proc_chkpt);
-
 };
 
 extern volatile bool ctrlc_pressed;
