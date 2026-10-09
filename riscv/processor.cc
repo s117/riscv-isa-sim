@@ -393,10 +393,6 @@ reg_t processor_t::take_trap(trap_t& t, reg_t epc)
   dbg_tracer->trace_after_take_trap(t, state.epc, state.evec);
 #endif
 
-#if defined(RISCV_ENABLE_SIMPOINT) && defined(RISCV_ENABLE_PC_FREQ_VEC)
-  pc_freqvec_tracker->update_vec(state.evec);
-#endif
-
   return state.evec;
 }
 
