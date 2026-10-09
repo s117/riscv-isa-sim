@@ -183,7 +183,9 @@ private:
 #endif
 
   // implement an instruction cache for simulator performance
-  icache_entry_t icache[ICACHE_ENTRIES];
+  // icache[ICACHE_ENTRIES] is a sentinel that is never refilled and always keeps tag -1 (never a valid pc),
+  // so the stepping loop that walks the entries sequentially stops at the array end without a bound check.
+  icache_entry_t icache[ICACHE_ENTRIES + 1];
 
   // implement a TLB for simulator performance
   static const reg_t TLB_ENTRIES = 256;

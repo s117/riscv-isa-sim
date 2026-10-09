@@ -280,6 +280,8 @@ size_t processor_t::step(const size_t n)
           const size_t idx = mmu->icache_index(pc);
           auto ic_entry = mmu->access_icache(pc);
 
+          // No wrap-around check is needed after the last icache entry: the sentinel entry
+          // that follows it never matches a pc (see mmu_t::icache).
 #ifdef STEPPING_WITHOUT_DUFF_DEVICE
           do {
             pc = execute_insn(pc, ic_entry->data);
