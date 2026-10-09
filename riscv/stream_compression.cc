@@ -147,8 +147,15 @@ size_t stream_compression_t::decompress_region(void *dst, size_t dst_limit, cons
         fprintf(stderr, "Decompressed %" PRIu64 "MB memory.\n", uint64_t(output_count) >> 20);
         progress_mark += 1024;
       }
-    } while (zs.avail_in != 0);
+      // Once the stream has ended, inflate consumes no more input, so stop even if the chunk has bytes left.
+    } while (zret != Z_STREAM_END && zs.avail_in != 0);
   } while (zret != Z_STREAM_END);
+
+  if (zs.avail_in != 0)
+  {
+    inflateEnd(&zs);
+    throw std::runtime_error("The compressed chunk supplier has extra data after the compressed stream is ended.");
+  }
 
   zret = inflateEnd(&zs);
   if (zret != Z_OK)
