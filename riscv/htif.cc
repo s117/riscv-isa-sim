@@ -312,7 +312,11 @@ void htif_isasim_t::tick_once()
         // Receive the streaming packet from host [H.2] / [H.3]
         packet_header_t streaming_hdr;
         recv(&streaming_hdr, sizeof(streaming_hdr));
-        assert(streaming_hdr.cmd == HTIF_CMD_UPLOAD_MEM_DUMP);
+        if (streaming_hdr.cmd != HTIF_CMD_UPLOAD_MEM_DUMP || streaming_hdr.seqno != seqno)
+          throw std::runtime_error(
+            "Error happened while load memory dump to target: expected an upload packet with seqno " +
+            std::to_string(seqno) + ", but received cmd " + std::to_string(streaming_hdr.cmd) +
+            " with seqno " + std::to_string(streaming_hdr.seqno) + ".");
 
         end_of_stream = streaming_hdr.get_payload_size() == 0;
         if (end_of_stream)
@@ -330,9 +334,18 @@ void htif_isasim_t::tick_once()
           return;
         }
         // Received a streamed chunk [H.2]
-        assert(streaming_hdr.get_payload_size() <= recv_buf.size());
+        // Checked at runtime (not with assert) as they guard the receiving buffer
+        if (streaming_hdr.get_payload_size() > recv_buf.size())
+          throw std::runtime_error(
+            "Error happened while load memory dump to target: the host sent a " +
+            std::to_string(streaming_hdr.get_payload_size()) + " bytes chunk, but the target can only receive " +
+            std::to_string(recv_buf.size()) + " bytes at a time.");
         recv(recv_buf.data(), streaming_hdr.get_payload_size());
-        assert(streaming_hdr.addr <= streaming_hdr.get_payload_size());
+        if (streaming_hdr.addr > streaming_hdr.get_payload_size())
+          throw std::runtime_error(
+            "Error happened while load memory dump to target: the host reported " +
+            std::to_string(streaming_hdr.addr) + " effective bytes in a " +
+            std::to_string(streaming_hdr.get_payload_size()) + " bytes chunk.");
         total_received += streaming_hdr.addr;
 
         // Feed it to the decompressor
