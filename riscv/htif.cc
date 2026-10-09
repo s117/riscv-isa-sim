@@ -211,11 +211,22 @@ void htif_isasim_t::tick_once()
       ifprintf(logging_on, stderr, "HTIF_CMD_UPLOAD_HART_FULL_STATE seq no: %" PRIu8 "\n", seqno);
 
       reg_t coreid = hdr.addr;
-      state_t *core_state = sim->get_core(coreid)->get_state();
+      processor_t *proc = sim->get_core(coreid);
+      state_t *core_state = proc->get_state();
+
+      // The state must be the padded size of this build's state_t, as sent by HTIF_CMD_DOWNLOAD_HART_FULL_STATE
+      const size_t expected_payload_size = (sizeof(state_t) + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN * HTIF_DATA_ALIGN;
+      if (p.get_payload_size() != expected_payload_size)
+        throw std::runtime_error(
+          "Error happened while loading the full state of HART " + std::to_string(coreid) + ": the host sent " +
+          std::to_string(p.get_payload_size()) + " bytes, but this simulator expects " +
+          std::to_string(expected_payload_size) + " bytes. The state was probably dumped by a different build.");
 
       const uint8_t *buf = (const uint8_t *) p.get_payload();
-      assert(p.get_payload_size() >= sizeof(state_t));
       memcpy(core_state, buf, sizeof(*core_state));
+      // Recompute what is derived from the status register (e.g. rv64), and flush the TLB and icache
+      // that were filled before the state was loaded.
+      proc->set_pcr(CSR_STATUS, core_state->sr);
 
       packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, sizeof(state_t)); // use addr to pass the actual size of the data used
       send(&ack, sizeof(ack));
@@ -329,6 +340,10 @@ void htif_isasim_t::tick_once()
         len = streaming_hdr.addr;
         prev_received_size = streaming_hdr.addr;
       });
+
+      // The memory has been replaced, drop what the cores have translated and decoded from the old content
+      for (size_t i = 0; i < sim->num_cores(); i++)
+        sim->get_core(i)->get_mmu()->flush_tlb();
 
       // Confirm the decompressed data size to host
       packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, inflated_size);
