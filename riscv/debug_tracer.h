@@ -164,6 +164,9 @@ public:
 
   void trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc);
 
+  // discard the record of the instruction in flight, as it didn't execute and will be fetched again
+  void trace_cancel_insn();
+
   bool enabled() { return m_enabled; };
 
   void increment_instret() { ++m_instret; };

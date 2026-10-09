@@ -338,6 +338,9 @@ size_t processor_t::step(const size_t n)
     {
       // Encountered an instruction accessing the precise HART state, therefore needs to be serialized.
       // The instruction will be re-fetched and re-executed, so don't count it at the moment.
+#ifdef RISCV_ENABLE_DBG_TRACE
+      dbg_tracer->trace_cancel_insn();
+#endif
 
       // Update state
       auto new_instret = batch_instret_max - batch_instret_budget;
@@ -348,6 +351,10 @@ size_t processor_t::step(const size_t n)
     catch (core_frozen_t &f)
     {
       // The core was frozen by the execution controller.
+      // The frozen instruction didn't execute, it will be fetched again after the core is defrosted.
+#ifdef RISCV_ENABLE_DBG_TRACE
+      dbg_tracer->trace_cancel_insn();
+#endif
       // Update state before ticking HTIF, so that the host will see a precise target state.
       auto new_instret = batch_instret_max - batch_instret_budget;
       update_timer(&state, new_instret - instret);

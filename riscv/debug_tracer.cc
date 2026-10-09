@@ -107,6 +107,13 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
   }
 }
 
+void debug_tracer_t::trace_cancel_insn() {
+  if (!m_enabled)
+    return;
+
+  clear_curr_record();
+}
+
 void debug_tracer_t::trace_after_xpr_access(size_t rn, reg_t val, operand_t operand) {
   if (!m_enabled)
     return;
