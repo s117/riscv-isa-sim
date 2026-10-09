@@ -318,10 +318,13 @@ size_t processor_t::step(const size_t n)
       auto trap_handler = take_trap(t, pc);
 
       // count scall and sbreak instructions
-      if (dynamic_cast<trap_syscall *>(&t) || dynamic_cast<trap_breakpoint *>(&t))
+      // Both have a fully fixed encoding, so use it instead of fetching the instruction again:
+      // take_trap() has already switched the privilege and flushed the TLB and icache.
+      const bool is_scall = dynamic_cast<trap_syscall *>(&t) != nullptr;
+      if (is_scall || dynamic_cast<trap_breakpoint *>(&t))
       {
         --batch_instret_budget;
-        post_execute_insn(pc, mmu->access_icache(pc)->data.insn, trap_handler, true);
+        post_execute_insn(pc, insn_t(is_scall ? MATCH_SCALL : MATCH_SBREAK), trap_handler, true);
       }
 
       // Update state
