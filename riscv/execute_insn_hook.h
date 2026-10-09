@@ -1,6 +1,7 @@
 #ifndef _EXECUTE_INSN_HOOK_H
 #define _EXECUTE_INSN_HOOK_H
 #include "processor.h"
+#include "debug_tracer.h"
 #include "bbtracker.h"
 #include "pc_freqvec_tracker.h"
 

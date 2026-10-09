@@ -2,6 +2,7 @@
 #include "hwacha_xcpt.h"
 #include "mmu.h"
 #include "trap.h"
+#include "execute_insn_hook.h"
 #include <stdexcept>
 
 REGISTER_EXTENSION(hwacha, []() { return new hwacha_t; })
@@ -32,8 +33,10 @@ void hwacha_t::reset()
     ut_state[i].reset();
 }
 
+// This is not generated from insn_template.cc, so it calls the per-instruction hooks itself.
 static reg_t custom(processor_t* p, insn_t insn, reg_t pc)
 {
+  p->pre_execute_insn(pc, insn);
   require_accelerator;
   hwacha_t* h = static_cast<hwacha_t*>(p->get_extension());
   bool matched = false;
@@ -78,6 +81,7 @@ static reg_t custom(processor_t* p, insn_t insn, reg_t pc)
   if (!matched)
     h->take_exception(HWACHA_CAUSE_ILLEGAL_INSTRUCTION, uint32_t(insn.bits()));
 
+  p->post_execute_insn(pc, insn, npc, false);
   return npc;
 }
 
