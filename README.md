@@ -97,3 +97,18 @@ interactive debug mode with `<control>-<c>`.
 To end the simulation from the debug prompt, press `<control>-<c>` or:
 
     : q
+
+Checkpoints and Device Traffic Replay
+---------------------------------------
+
+The FESVR can record the device traffic (proxied system calls) of a run,
+replay it later without the original environment, and create and load
+checkpoints on top of a replay:
+
+    $ mkdir rec
+    $ spike -m256 +dev-traffic-record=rec pk hello
+    $ spike -m256 +dev-traffic-replay=rec +create-checkpoint=ckpts.txt pk
+    $ spike -m256 +dev-traffic-replay=rec +load-checkpoint=hello.1M pk
+
+See [docs/fesvr-checkpoint-and-traffic-replay.md](docs/fesvr-checkpoint-and-traffic-replay.md)
+for the usage guide, the design and the file formats.
