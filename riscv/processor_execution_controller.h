@@ -14,6 +14,11 @@ class core_frozen_t : public std::exception
 {
 };
 
+// Thrown when the HART is blocked waiting on the host, but the host has stopped the simulation (HTIF tick() returns false)
+class host_stopped_t : public std::exception
+{
+};
+
 class processor_execution_controller_t
 {
 private:

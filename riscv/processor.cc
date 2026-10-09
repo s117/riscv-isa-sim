@@ -236,7 +236,8 @@ static size_t next_timer(state_t* state)
 
 
 /**
- * Step for either 0 or exact n instructions.
+ * Step for either 0 or exact n instructions. Fewer than n instructions are stepped only if
+ * the host stops the simulation while the core is waiting on it.
  *
  * @param n Number of instruction to step
  * @return size_t Number of instructions stepped.
@@ -350,7 +351,17 @@ size_t processor_t::step(const size_t n)
       state.pc = pc;
       instret = new_instret;
       // Keep ticking HTIF to get the core defrost sooner.
-      while (htif_exec_ctrl.frozen_state()) sim->get_htif()->tick();
+      while (htif_exec_ctrl.frozen_state())
+      {
+        // The host has stopped the simulation and will never defrost the core.
+        if (unlikely(!sim->get_htif()->tick())) return instret;
+      }
+    }
+    catch (host_stopped_t &s)
+    {
+      // The host has stopped the simulation (and may have reset the core) while the core was waiting on it.
+      // Leave the core state as the host left it, and report the instructions retired so far.
+      return batch_instret_max - batch_instret_budget;
     }
   }
 
@@ -476,7 +487,15 @@ void processor_t::set_pcr(int which, reg_t val)
         if (GET_COMMAND_DEV_ID(val) == DEV_ID_SYSCALL)
         {
           waiting_host = true;
-          while (waiting_host) sim->get_htif()->tick();
+          while (waiting_host)
+          {
+            if (unlikely(!sim->get_htif()->tick()))
+            {
+              // The host has stopped the simulation and will never respond.
+              waiting_host = false;
+              throw host_stopped_t();
+            }
+          }
         }
       }
       break;
