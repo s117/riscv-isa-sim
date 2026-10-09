@@ -120,18 +120,23 @@ size_t stream_compression_t::decompress_region(void *dst, size_t dst_limit, cons
       zs.next_out = (z_const Bytef *) dst + output_count;
       size_t assigned_out = std::min(dst_limit - output_count, INFLATE_CHUNK_SIZE);
       zs.avail_out = assigned_out;
-      if (zs.avail_out == 0)
-      {
-        inflateEnd(&zs);
-        throw std::runtime_error("zlib::inflate cannot decompress the full stream because the destination is too small.");
-      }
+      const uInt avail_in_before = zs.avail_in;
 
+      // Keep calling inflate even when the destination is full (avail_out == 0): the end of the stream
+      // (end-of-block code and adler32 trailer) produces no output, and may arrive in a later chunk.
       zret = inflate(&zs, Z_NO_FLUSH);
 
       if (zret != Z_OK && zret != Z_BUF_ERROR && zret != Z_STREAM_END)
       {
         inflateEnd(&zs);
         throw std::runtime_error("zlib::inflate failed with return code " + std::to_string(zret));
+      }
+
+      if (assigned_out == 0 && zret != Z_STREAM_END && zs.avail_in == avail_in_before)
+      {
+        // The destination is full, but the stream still has data that needs output space.
+        inflateEnd(&zs);
+        throw std::runtime_error("zlib::inflate cannot decompress the full stream because the destination is too small.");
       }
 
       assert(zs.avail_out <= assigned_out);
