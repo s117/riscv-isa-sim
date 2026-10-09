@@ -168,8 +168,8 @@ public:
 
   inline void on_instret_increment() __attribute__((always_inline))
   {
-    // update instruction count down.
-    if (unlikely(enable)) --this->loaded_instr_cnt_down;
+    // update instruction count down, only while it is armed
+    if (unlikely(enable & EXE_CTRL_MASK_INSTR_CNT_DOWN)) --this->loaded_instr_cnt_down;
   }
 
   uint8_t frozen_state() const
