@@ -18,6 +18,8 @@
 static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
+  fprintf(stderr, "       spike [host options] +dev-traffic-replay=<recording> [FESVR options]\n");
+  fprintf(stderr, "             (replay: the boot ELF and the program arguments come from the recording)\n");
   fprintf(stderr, "Host Options:\n");
   fprintf(stderr, "  -h                 Print this help message\n");
   fprintf(stderr, "  -p<n>              Simulate <n> processors\n");

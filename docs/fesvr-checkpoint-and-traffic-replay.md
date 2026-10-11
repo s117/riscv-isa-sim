@@ -27,7 +27,7 @@ A program running on spike under the proxy kernel (pk) reaches the outside world
 The mechanism has three parts:
 
 - **Record.** In a normal run, the FESVR records the device traffic of every command into a *recording* folder.
-- **Replay.** A later run is given the recording instead of the real host environment. Each command is answered from the recording: the recorded writes are applied to target memory, the recorded reads are checked against target memory, and the recorded response is returned. Nothing runs on the host. The replayed run needs neither the program's files nor its sysroot, nor its command-line arguments: pk itself fetches the arguments through a system call, which is also replayed.
+- **Replay.** A later run is given the recording instead of the real host environment. Each command is answered from the recording: the recorded writes are applied to target memory, the recorded reads are checked against target memory, and the recorded response is returned. Nothing runs on the host. The recording also keeps a copy of the ELF loaded at boot (pk) as `boot.elf`, so the replayed run needs nothing but the recording: not pk, not the program's files or sysroot, and not its command-line arguments, which pk fetches through a system call that is also replayed.
 - **Checkpoints.** A replaying run can stop at chosen instruction counts and save a checkpoint. A checkpoint holds the hart's architectural state, all of target memory, and the position in the recording. Loading one restores that state, moves the recording to the same position, and continues from there.
 
 Because the recording supplies everything the program needs, a checkpoint can be simulated without recreating the program's environment. This mechanism replaces spike's former `-c` and `--make-checkpoint` options, which have been removed.
@@ -45,10 +45,11 @@ The examples below use SPEC's `473.astar` running under pk with 256 MB of memory
 
 ### Where options go
 
-FESVR options start with `+`. Put spike's own `-` options first, then the `+` options, then the target program and its arguments:
+FESVR options start with `+`. Put spike's own `-` options first, then the `+` options, then the target program and its arguments. In replay mode there is no target program:
 
 ```
-spike [-m<MB> -e<n> ...] [+fesvr-options ...] pk [program args ...]
+spike [-m<MB> -e<n> ...] [+fesvr-options ...] pk [program args ...]      # real-device mode
+spike [-m<MB> -e<n> ...] +dev-traffic-replay=<recording> [+fesvr-options ...]   # replay mode
 ```
 
 spike's option parser stops at the first argument that doesn't start with `-`. A `-` option placed after a `+` option is therefore no longer seen by spike.
@@ -63,22 +64,23 @@ spike -m256 \
     +chroot=473.astar_test +target-cwd=/app \
     +dev-traffic-record=fesvr-recording \
     +final-state-dump=final-state-record.json \
-    pk astar_base.rv64 lake.cfg
+    /pk astar_base.rv64 lake.cfg
 ```
 
-This is a normal run: the program does its real system calls through the FESVR (inside `+chroot`, starting in `+target-cwd`), and every command is also written to `fesvr-recording/`. A run stopped early with `-e<n>` still produces a valid recording, but only of the commands issued before it stopped.
+This is a normal run: the program does its real system calls through the FESVR (inside `+chroot`, starting in `+target-cwd`), and every command is also written to `fesvr-recording/`, together with a copy of the boot ELF as `boot.elf`. A run stopped early with `-e<n>` still produces a valid recording, but only of the commands issued before it stopped.
+
+With `+chroot`, the boot ELF is a target path like every other path the program uses: it is resolved inside the chroot, relative to `+target-cwd`, with no fallback to the host. Here `/pk` is `473.astar_test/pk`, so pk must be copied into the sysroot. Without `+chroot`, the boot ELF is a host path, and a bare name is also looked up in the installation's target directory.
 
 ### Replay it
 
 ```
 spike -m256 \
     +dev-traffic-replay=fesvr-recording \
-    +final-state-dump=final-state-replay.json \
-    pk
+    +final-state-dump=final-state-replay.json
 ```
 
-- Use the same `-m` and the same pk binary. The recording stores both, and the replay checks them (the "ELF" whose SHA-256 is compared is the binary spike loads, which is pk).
-- Don't pass the program, its arguments, `+chroot` or `+target-cwd`. pk gets all of them through replayed system calls. Real-device options are ignored in replay mode.
+- Use the same `-m` as the recording run; the replay checks it.
+- Don't pass a target program or arguments: replay mode rejects them. The boot ELF is loaded from the recording's `boot.elf`, and its SHA-256 is checked against the recording. pk gets the program and its arguments through replayed system calls. `+chroot`, `+target-cwd` and the other real-device options are ignored in replay mode.
 - A replay prints nothing and writes no files: system calls aren't executed again. Console output and output files exist only from the recording run.
 - To confirm the replay reproduced the run, compare the `instret` in the two `+final-state-dump` files. They must be equal.
 
@@ -94,7 +96,7 @@ astar.5G: 5000000000
 Then replay with `+create-checkpoint`:
 
 ```
-spike -m256 +dev-traffic-replay=fesvr-recording +create-checkpoint=ckpts.txt pk
+spike -m256 +dev-traffic-replay=fesvr-recording +create-checkpoint=ckpts.txt
 ```
 
 The checkpoints are written to the current directory as files named `astar.1G` and `astar.5G`. The run stops, with exit status 0, right after the last checkpoint is written.
@@ -104,11 +106,10 @@ The checkpoints are written to the current directory as files named `astar.1G` a
 ```
 spike -m256 -e100000000 \
     +dev-traffic-replay=fesvr-recording \
-    +load-checkpoint=astar.1G \
-    pk
+    +load-checkpoint=astar.1G
 ```
 
-This restores `astar.1G`, then simulates 100M instructions (`-e`). A checkpoint must be loaded together with the recording it was created from: the checkpoint stores the recording's SHA-256 and the load checks it. spike still requires a target program argument, but nothing is loaded from it; the program is already in the restored memory.
+This restores `astar.1G`, then simulates 100M instructions (`-e`). A checkpoint must be loaded together with the recording it was created from: the checkpoint stores the recording's SHA-256 and the load checks it. No ELF is loaded; the program is already in the restored memory.
 
 
 ## 3. Options reference
@@ -117,15 +118,15 @@ FESVR options, parsed in `htif_t::htif_t` (`riscv-fesvr/fesvr/htif.cc`). "Real" 
 
 | Option | Applies in | Effect |
 |---|---|---|
-| `+dev-traffic-record=<dir>` | real, replay | Record every command's device traffic into `<dir>`, which must exist. Recording while replaying is allowed and re-records the replayed traffic. |
-| `+dev-traffic-replay=<dir>` | — | Replay mode: no host devices are created, and commands are answered from the recording in `<dir>`. The recording is opened and validated at startup. |
+| `+dev-traffic-record=<dir>` | real, replay | Record every command's device traffic into `<dir>`, which must exist, and save the boot ELF there as `boot.elf`. Recording while replaying is allowed and re-records the replayed traffic. |
+| `+dev-traffic-replay=<dir>` | — | Replay mode: no host devices are created, and commands are answered from the recording in `<dir>`. The boot ELF is loaded from `<dir>/boot.elf`, and target arguments are rejected. The recording is opened and validated at startup. |
 | `+create-checkpoint=<file>` | replay | Create checkpoints as listed in the description file `<file>`, which is parsed at startup. Single hart only. |
 | `+load-checkpoint=<file>` | replay, mirror | Restore checkpoint `<file>` before execution starts. |
 | `+final-state-dump=<file>` | real, replay | At the end, write JSON `{"hart_state": [{"instret": N}, ...]}`. N is the hart's retired-instruction count since the original boot, including the part before a restored checkpoint. |
 | `+signature=<file>` | real, replay | Write the memory between the ELF's `begin_signature` and `end_signature` symbols (torture tests). There is no signature after `+load-checkpoint`, because no ELF is loaded. |
 | `+strace=<file>` | real only | Write a trace of the proxied system calls. |
 | `+std-dump=<base>` | real only | Also copy the target's stdout and stderr to `<base>.stdout` and `<base>.stderr`. |
-| `+chroot=<dir>` | real only | Resolve the target's absolute paths under `<dir>`. |
+| `+chroot=<dir>` | real only | Resolve the target's absolute paths under `<dir>`. The boot ELF (the target program argument) is a target path too: resolved inside `<dir>`, relative to `+target-cwd`, with no fallback to the host. |
 | `+target-cwd=<dir>` | real only | Initial working directory of the target. |
 | `+disk=<file>`, `+rfb[=<n>]` | real only | Add a disk or frame-buffer device. |
 | `+verbose` | all | Log each serviced command and the target spec to stderr. |
@@ -300,6 +301,7 @@ With `+load-checkpoint` and `+dev-traffic-replay` (`htif_t::start`, `load_checkp
 - **Mirror FESVR:** every later `htif_t`.
   - Its composition replays from a `cmd_service_sequence_buffer_t`. That buffer registers as a traffic listener on the main FESVR and queues every sequence the main services.
   - It applies the same memory writes to its own target, checks the same reads against its own memory, and delivers the same responses.
+  - It boots the same ELF as the main FESVR (the recording's `boot.elf`, or the main's resolved target program), and rejects target arguments of its own.
   - It ignores the device, recorder, strace, std-dump, chroot, target-cwd, signature and final-state-dump options.
 
 **Ordering requirements:**
@@ -383,13 +385,14 @@ All integers are little-endian (host order on x86), and all structures are packe
 | File | Content |
 |---|---|
 | `target_spec.data` | the system the recording was made on |
+| `boot.elf` | a copy of the ELF loaded at boot (pk), loaded by the replay; its SHA-256 equals the one in `target_spec.data` |
 | `device_traffic_hart<N>.packets` | the command service sequences of hart N |
 | `device_traffic_hart<N>.index` | the offset of each command in `.packets` |
 | `device_traffic_hart<N>.sha256` | the SHA-256 of `.packets`; it identifies the recording |
 
-Recordings made before the spec file was renamed have `target_spec` instead of `target_spec.data`.
+Recordings made before the spec file was renamed have `target_spec` instead of `target_spec.data`. Recordings made before the boot ELF was saved have no `boot.elf`: copy the boot ELF they were recorded with into the folder as `boot.elf` (the replay reports the SHA-256 it must have). A recording of a run that loaded no ELF has no `boot.elf` and an all-zero ELF SHA-256 in `target_spec.data`. `target_spec.data` and `boot.elf` are never compressed.
 
-**Compression.** In a CMake build, `FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT` is defined (`riscv-fesvr/fesvr/CMakeLists.txt`). The `.packets`, `.index` and `.sha256` files are then each a gzip stream. An autotools build writes them uncompressed. All offsets below refer to the uncompressed bytes. A gzip build can read an uncompressed recording, because zlib passes plain files through; an autotools build can't read a compressed one. `target_spec.data` is never compressed.
+**Compression.** In a CMake build, `FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT` is defined (`riscv-fesvr/fesvr/CMakeLists.txt`). The `.packets`, `.index` and `.sha256` files are then each a gzip stream. An autotools build writes them uncompressed. All offsets below refer to the uncompressed bytes. A gzip build can read an uncompressed recording, because zlib passes plain files through; an autotools build can't read a compressed one.
 
 **`target_spec.data`** (40 bytes):
 
@@ -476,6 +479,9 @@ Errors end the run with `terminate called after throwing an instance of 'std::ru
 | Message | Cause |
 |---|---|
 | `to create checkpoint(s), FESVR must operate in device traffic replay mode.` / `to load a checkpoint, …` | `+create-checkpoint` or `+load-checkpoint` without `+dev-traffic-replay`. |
+| `in device traffic replay mode, the boot ELF comes from the recording's boot.elf …` / `on a mirror FESVR, …` | A target program or arguments were given in replay mode, or to a mirror FESVR. Remove them. |
+| `could not open <path> in chroot <dir> (target cwd <cwd>)` | With `+chroot`, the boot ELF is looked up inside the chroot, relative to `+target-cwd`. Copy it into the sysroot, or fix the path. |
+| `could not open <path>` | Without `+chroot`, the boot ELF wasn't found on the host, nor (for a bare name) in the installation's target directory. |
 | `Cannot open '<file>'.` | The checkpoint description file can't be read. |
 | `Configuration '…' has no ':' between …`, `… has an empty checkpoint name.`, `… contains invalid skip amount.` | A malformed line in the description file. |
 | `Configurations has same skip amount: …` / `… same checkpoint name: …` | Two description lines share a count or a name. |
@@ -487,15 +493,17 @@ Errors end the run with `terminate called after throwing an instance of 'std::ru
 |---|---|
 | `Cannot open file to write device traffic packets: <dir>/…` | The `+dev-traffic-record` folder doesn't exist or isn't writable. |
 | `failed to write the device traffic …` / `Failed to finalize the device traffic recording …` | A write failed, for example because the disk is full. The recording is incomplete and can't be replayed. |
+| `Cannot open file to write the boot ELF: …` / `Failed to save the boot ELF …` / `The boot ELF saved to … has SHA256 …` | `boot.elf` couldn't be written, or the copy doesn't match the loaded ELF. |
 
 **Starting a replay or loading a checkpoint:**
 
 | Message | Cause |
 |---|---|
 | `fail to load pre-recorded FESVR device traffic: cannot open target spec information.` | Wrong `+dev-traffic-replay` path, or an old recording whose spec file is named `target_spec`. |
+| `the device traffic recording <dir> has no boot.elf …` | A recording made before the boot ELF was saved. Copy the ELF it was recorded with into `<dir>` as `boot.elf`; the message gives the SHA-256 it must have. |
 | `malformed device traffic … file: bad magic number` | Not a recording file, or a compressed recording read by an autotools (uncompressed) build. |
 | `malformed device traffic checksum file: cannot read the sha256 of the recording` | The recording was never finalized; see the `failed to write` row above. |
-| `incompatible FESVR device traffic recording: … expects target to have <X>MB memory …` / `… HART(s) …` / `… load an ELF with SHA256 …` | Different `-m`, `-p` or pk binary from the recording run. |
+| `incompatible FESVR device traffic recording: … expects target to have <X>MB memory …` / `… HART(s) …` / `… load an ELF with SHA256 …` | Different `-m` or `-p` from the recording run, or a `boot.elf` that isn't the ELF the recording was made with. |
 | `Cannot load the checkpoint file … bad magic number.` / `… created for system with …` | Not a checkpoint, or a different hart count or memory size. |
 | `Cannot use the checkpoint file … requires HART <i> to load a device traffic recording with SHA256 …` | The checkpoint belongs to a different recording. |
 | `Error happened while loading the full state of HART <i>: … The state was probably dumped by a different build.` | The checkpoint comes from a spike build with a different `state_t`. |
@@ -512,7 +520,7 @@ Errors end the run with `terminate called after throwing an instance of 'std::ru
 | `malformed device traffic input: …` (CRC32, unexpected EOF, early termination) | The recording files are damaged. |
 
 **When a replay diverges, look for:**
-- a different pk binary or spike build;
+- a different spike build;
 - different `-m`/`-p`;
 - a recording made with asynchronous devices (see [Determinism](#determinism)).
 
