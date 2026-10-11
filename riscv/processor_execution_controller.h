@@ -129,6 +129,30 @@ public:
     return (pc & this->loaded_pc_break_filter) == pc;
   }
 
+  /**
+   * Apply the triggers met at an instruction boundary whatever the next instruction is: the unconditional breakpoint
+   * and a count down that has run out.
+   * @return True if the HART is frozen.
+   */
+  bool apply_boundary_triggers()
+  {
+    if (likely(!this->frozen && !this->enable)) return false;
+
+    if (this->enable & EXE_CTRL_MASK_UNCONDITIONAL)
+    {
+      this->frozen |= EXE_CTRL_MASK_UNCONDITIONAL;
+      this->enable &= ~EXE_CTRL_MASK_UNCONDITIONAL;
+    }
+
+    if ((this->enable & EXE_CTRL_MASK_INSTR_CNT_DOWN) && (this->loaded_instr_cnt_down == 0))
+    {
+      this->frozen |= EXE_CTRL_MASK_INSTR_CNT_DOWN;
+      this->enable &= ~EXE_CTRL_MASK_INSTR_CNT_DOWN;
+    }
+
+    return this->frozen;
+  }
+
   inline void pre_execution_check(reg_t pc) __attribute__((always_inline))
   {
     if (likely(!this->frozen && !this->enable)) return;

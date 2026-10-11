@@ -252,6 +252,14 @@ size_t processor_t::step(const size_t n)
   // Simulating instructions in batch.
   while (instret < n)
   {
+    // The state is precise between batches. A frozen HART waits here for the host to defrost it, servicing the HTIF
+    // (like a system call waits for the host), whatever its next instruction is. The host may replace the state meanwhile.
+    while (unlikely(htif_exec_ctrl.apply_boundary_triggers()))
+    {
+      // The host has stopped the simulation and will never defrost the core.
+      if (unlikely(!sim->get_htif()->tick())) return instret;
+    }
+
     // Maximum allowed instret after the batch.
     size_t batch_instret_max = std::min(n, instret + (next_timer(&state) | 1U));
 
@@ -350,22 +358,16 @@ size_t processor_t::step(const size_t n)
     }
     catch (core_frozen_t &f)
     {
-      // The core was frozen by the execution controller.
+      // The core was frozen by the execution controller in the middle of the batch.
       // The frozen instruction didn't execute, it will be fetched again after the core is defrosted.
 #ifdef RISCV_ENABLE_DBG_TRACE
       dbg_tracer->trace_cancel_insn();
 #endif
-      // Update state before ticking HTIF, so that the host will see a precise target state.
+      // End the batch here, the core waits to be defrosted at the start of the next one, with a precise state.
       auto new_instret = batch_instret_max - batch_instret_budget;
       update_timer(&state, new_instret - instret);
       state.pc = pc;
       instret = new_instret;
-      // Keep ticking HTIF to get the core defrost sooner.
-      while (htif_exec_ctrl.frozen_state())
-      {
-        // The host has stopped the simulation and will never defrost the core.
-        if (unlikely(!sim->get_htif()->tick())) return instret;
-      }
     }
     catch (host_stopped_t &s)
     {
