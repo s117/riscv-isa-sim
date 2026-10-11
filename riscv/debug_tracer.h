@@ -40,6 +40,13 @@ typedef struct {
 const static size_t MAX_RDST = 1;
 const static size_t MAX_RSRC = 3;
 
+// The parts of a record a trace output asks for, see trace_output_t::record_fields(). The record header (valid, good,
+// exception, pc, next_pc, insn, seqno, cycle and instret) is always recorded.
+const static unsigned TRACE_OPERANDS = 1u << 0;       // rs_rec and rd_rec
+const static unsigned TRACE_MEMORY = 1u << 1;         // mem_rec
+const static unsigned TRACE_POST_EXE_STATE = 1u << 2; // post_exe_state of every record, not only of trap records
+const static unsigned TRACE_DEFAULT_FIELDS = TRACE_OPERANDS | TRACE_MEMORY;
+
 typedef struct {
   bool valid;
   bool good;
@@ -57,6 +64,8 @@ typedef struct {
 
   mem_record_t mem_rec;
 
+  // The state after the instruction (or the trap). Copying it costs as much as the rest of the record, so it is only
+  // valid on records with exception set, and on every record if a registered output asks for TRACE_POST_EXE_STATE.
   state_t post_exe_state;
 } insn_record_t;
 
@@ -66,11 +75,17 @@ public:
   virtual ~trace_output_t() = default;
 
   virtual void issue_insn(const insn_record_t &insn) = 0;
+
+  // The TRACE_* parts of the records this output reads. The tracer records a part if any of its outputs asks for it,
+  // so an output that reads less makes tracing faster. Called when the output is registered.
+  virtual unsigned record_fields() const { return TRACE_DEFAULT_FIELDS; }
 };
 
 class trace_output_null_t : public trace_output_t {
 public:
   void issue_insn(const insn_record_t &insn) final {};
+
+  unsigned record_fields() const final { return 0; }
 };
 
 class trace_last_n_wrapper_t : public trace_output_t {
@@ -86,6 +101,8 @@ public:
   ~trace_last_n_wrapper_t() override;
 
   void issue_insn(const insn_record_t &insn) override;
+
+  unsigned record_fields() const override { return m_wrapped_output->record_fields(); }
 
 private:
   size_t next_idx(size_t i) const {
@@ -146,7 +163,10 @@ public:
 
   void register_trace_output(std::unique_ptr<trace_output_t> trace_output);
 
-  void clear_trace_output() { m_trace_output.clear(); }
+  void clear_trace_output() {
+    m_trace_output.clear();
+    m_record_fields = 0;
+  }
 
   // The trace_*() functions run for every instruction: they only test m_enabled inline, the recording is out of line.
 
@@ -224,6 +244,7 @@ private:
 
   uint64_t m_enabling_instret;
   bool m_enabled;
+  unsigned m_record_fields; // TRACE_* parts asked for by the outputs
   processor_t &m_tgt_proc;
   insn_record_t m_rec_insn;
   std::vector<std::unique_ptr<trace_output_t>> m_trace_output;

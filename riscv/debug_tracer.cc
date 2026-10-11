@@ -18,6 +18,7 @@ debug_tracer_t::debug_tracer_t(processor_t &target_processor)
       m_instret(0),
       m_enabling_instret(UINT64_MAX),
       m_enabled(false),
+      m_record_fields(0),
       m_tgt_proc(target_processor),
       m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
@@ -33,7 +34,9 @@ void debug_tracer_t::disable_trace() {
 }
 
 void debug_tracer_t::register_trace_output(std::unique_ptr<trace_output_t> trace_output) {
-  if (trace_output) m_trace_output.emplace_back(std::move(trace_output));
+  if (!trace_output) return;
+  m_record_fields |= trace_output->record_fields();
+  m_trace_output.emplace_back(std::move(trace_output));
 }
 
 
@@ -62,7 +65,8 @@ void debug_tracer_t::trace_after_insn_execute_slow(reg_t pc, reg_t next_pc) {
   assert(m_rec_insn.pc == pc);
 
   m_rec_insn.next_pc = next_pc;
-  m_rec_insn.post_exe_state = *m_tgt_proc.get_state();
+  if (m_record_fields & TRACE_POST_EXE_STATE)
+    m_rec_insn.post_exe_state = *m_tgt_proc.get_state();
 
   drain_curr_record();
 }
