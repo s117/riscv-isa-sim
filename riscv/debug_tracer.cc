@@ -187,7 +187,20 @@ void debug_tracer_t::drain_curr_record() {
 
 
 void debug_tracer_t::clear_curr_record() {
-  memset(&m_rec_insn, 0, sizeof(m_rec_insn));
+  // Reset only what isn't always written before it is read, instead of all of the (large) record: the parts of a
+  // sub-record are only meaningful while it is valid, and post_exe_state only while a request or a trap filled it.
+  m_rec_insn.valid = false;
+  m_rec_insn.good = false;
+  m_rec_insn.exception = false;
+  m_rec_insn.next_pc = 0;
+  m_rec_insn.insn = insn_t(0);
+  for (auto &rs: m_rec_insn.rs_rec)
+    rs.valid = false;
+  for (auto &rd: m_rec_insn.rd_rec)
+    rd.valid = false;
+  m_rec_insn.mem_rec.valid = false;
+  m_rec_insn.mem_rec.good = false;
+  m_rec_insn.mem_rec.write = false;
 }
 
 void debug_tracer_t::seqno_incr() {
