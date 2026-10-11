@@ -41,17 +41,13 @@ void debug_tracer_t::register_trace_output(std::unique_ptr<trace_output_t> trace
 
 
 void debug_tracer_t::trace_before_insn_ic_fetch_slow(reg_t pc) {
-  m_rec_insn.pc = pc;
-  m_rec_insn.next_pc = 0;
-  m_rec_insn.seqno = m_insn_seq;
-  m_rec_insn.cycle = m_insn_seq; // Assume one trace per cycle in ISA simulator
-  m_rec_insn.instret = m_instret;
-  m_rec_insn.valid = true;
+  begin_record(pc);
 }
 
 void debug_tracer_t::trace_before_insn_execute_slow(reg_t pc, insn_t insn) {
+  // only the first instruction of a run of cached instructions had its fetch traced
   if (!m_rec_insn.valid) {
-    trace_before_insn_ic_fetch(pc);
+    begin_record(pc);
   }
   assert(m_rec_insn.valid);
   assert(m_rec_insn.pc == pc);
@@ -99,58 +95,6 @@ void debug_tracer_t::trace_after_take_trap_slow(trap_t &t, reg_t epc, reg_t new_
   }
 }
 
-void debug_tracer_t::trace_after_xpr_access_slow(size_t rn, reg_t val, operand_t operand) {
-  assert(m_rec_insn.valid && m_rec_insn.good);
-
-  switch (operand) {
-    case RSRC1_OPERAND:
-    case RSRC2_OPERAND:
-    case RSRC3_OPERAND:
-      assert(!m_rec_insn.rs_rec[operand].valid || m_rec_insn.rs_rec[operand].val.xval == val);
-      m_rec_insn.rs_rec[operand].n = rn;
-      m_rec_insn.rs_rec[operand].val.xval = val;
-      m_rec_insn.rs_rec[operand].valid = true;
-      m_rec_insn.rs_rec[operand].fpr = false;
-      break;
-    case RDST_OPERAND:
-      assert(!m_rec_insn.rd_rec[operand - RDST_OPERAND].valid);
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].n = rn;
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].val.xval = val;
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].valid = true;
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].fpr = false;
-      break;
-    default:
-      assert(0);
-      break;
-  }
-}
-
-void debug_tracer_t::trace_after_fpr_access_slow(size_t rn, freg_t val, operand_t operand) {
-  assert(m_rec_insn.valid && m_rec_insn.good);
-
-  switch (operand) {
-    case RSRC1_OPERAND:
-    case RSRC2_OPERAND:
-    case RSRC3_OPERAND:
-      assert(!m_rec_insn.rs_rec[operand].valid || m_rec_insn.rs_rec[operand].val.fval == val);
-      m_rec_insn.rs_rec[operand].n = rn;
-      m_rec_insn.rs_rec[operand].val.fval = val;
-      m_rec_insn.rs_rec[operand].valid = true;
-      m_rec_insn.rs_rec[operand].fpr = true;
-      break;
-    case RDST_OPERAND:
-      assert(!m_rec_insn.rd_rec[operand - RDST_OPERAND].valid);
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].n = rn;
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].val.fval = val;
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].valid = true;
-      m_rec_insn.rd_rec[operand - RDST_OPERAND].fpr = true;
-      break;
-    default:
-      assert(0);
-      break;
-  }
-}
-
 void debug_tracer_t::trace_before_dc_translate_slow(reg_t vaddr, size_t size, bool write) {
   assert(m_rec_insn.valid && m_rec_insn.good);
 
@@ -185,27 +129,6 @@ void debug_tracer_t::drain_curr_record() {
   clear_curr_record();
 }
 
-
-void debug_tracer_t::clear_curr_record() {
-  // Reset only what isn't always written before it is read, instead of all of the (large) record: the parts of a
-  // sub-record are only meaningful while it is valid, and post_exe_state only while a request or a trap filled it.
-  m_rec_insn.valid = false;
-  m_rec_insn.good = false;
-  m_rec_insn.exception = false;
-  m_rec_insn.next_pc = 0;
-  m_rec_insn.insn = insn_t(0);
-  for (auto &rs: m_rec_insn.rs_rec)
-    rs.valid = false;
-  for (auto &rd: m_rec_insn.rd_rec)
-    rd.valid = false;
-  m_rec_insn.mem_rec.valid = false;
-  m_rec_insn.mem_rec.good = false;
-  m_rec_insn.mem_rec.write = false;
-}
-
-void debug_tracer_t::seqno_incr() {
-  ++m_insn_seq;
-}
 
 const insn_record_t &debug_tracer_t::get_current_insn_info() {
   return m_rec_insn;

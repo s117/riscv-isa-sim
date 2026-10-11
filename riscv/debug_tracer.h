@@ -5,6 +5,7 @@
 
 #ifdef RISCV_ENABLE_DBG_TRACE
 
+#include <cassert>
 #include <cstddef>
 #include <string>
 #include <iostream>
@@ -233,6 +234,16 @@ private:
 
   void trace_after_take_trap_slow(trap_t &t, reg_t epc, reg_t new_pc);
 
+  // Start the record of the instruction at pc.
+  void begin_record(reg_t pc) {
+    m_rec_insn.pc = pc;
+    m_rec_insn.next_pc = 0;
+    m_rec_insn.seqno = m_insn_seq;
+    m_rec_insn.cycle = m_insn_seq; // Assume one trace per cycle in ISA simulator
+    m_rec_insn.instret = m_instret;
+    m_rec_insn.valid = true;
+  }
+
   void drain_curr_record();
 
   void clear_curr_record();
@@ -249,6 +260,82 @@ private:
   insn_record_t m_rec_insn;
   std::vector<std::unique_ptr<trace_output_t>> m_trace_output;
 };
+
+// Defined here so that they can be inlined into their per-instruction callers: the register access records into
+// processor_t::trace_xpr_access() and trace_fpr_access(), the other two into drain_curr_record().
+
+inline void debug_tracer_t::clear_curr_record() {
+  // Reset only what isn't always written before it is read, instead of all of the (large) record: the parts of a
+  // sub-record are only meaningful while it is valid, and post_exe_state only while a request or a trap filled it.
+  m_rec_insn.valid = false;
+  m_rec_insn.good = false;
+  m_rec_insn.exception = false;
+  m_rec_insn.next_pc = 0;
+  m_rec_insn.insn = insn_t(0);
+  for (auto &rs: m_rec_insn.rs_rec)
+    rs.valid = false;
+  for (auto &rd: m_rec_insn.rd_rec)
+    rd.valid = false;
+  m_rec_insn.mem_rec.valid = false;
+  m_rec_insn.mem_rec.good = false;
+  m_rec_insn.mem_rec.write = false;
+}
+
+inline void debug_tracer_t::seqno_incr() {
+  ++m_insn_seq;
+}
+
+inline void debug_tracer_t::trace_after_xpr_access_slow(size_t rn, reg_t val, operand_t operand) {
+  assert(m_rec_insn.valid && m_rec_insn.good);
+
+  switch (operand) {
+    case RSRC1_OPERAND:
+    case RSRC2_OPERAND:
+    case RSRC3_OPERAND:
+      assert(!m_rec_insn.rs_rec[operand].valid || m_rec_insn.rs_rec[operand].val.xval == val);
+      m_rec_insn.rs_rec[operand].n = rn;
+      m_rec_insn.rs_rec[operand].val.xval = val;
+      m_rec_insn.rs_rec[operand].valid = true;
+      m_rec_insn.rs_rec[operand].fpr = false;
+      break;
+    case RDST_OPERAND:
+      assert(!m_rec_insn.rd_rec[operand - RDST_OPERAND].valid);
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].n = rn;
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].val.xval = val;
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].valid = true;
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].fpr = false;
+      break;
+    default:
+      assert(0);
+      break;
+  }
+}
+
+inline void debug_tracer_t::trace_after_fpr_access_slow(size_t rn, freg_t val, operand_t operand) {
+  assert(m_rec_insn.valid && m_rec_insn.good);
+
+  switch (operand) {
+    case RSRC1_OPERAND:
+    case RSRC2_OPERAND:
+    case RSRC3_OPERAND:
+      assert(!m_rec_insn.rs_rec[operand].valid || m_rec_insn.rs_rec[operand].val.fval == val);
+      m_rec_insn.rs_rec[operand].n = rn;
+      m_rec_insn.rs_rec[operand].val.fval = val;
+      m_rec_insn.rs_rec[operand].valid = true;
+      m_rec_insn.rs_rec[operand].fpr = true;
+      break;
+    case RDST_OPERAND:
+      assert(!m_rec_insn.rd_rec[operand - RDST_OPERAND].valid);
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].n = rn;
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].val.fval = val;
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].valid = true;
+      m_rec_insn.rd_rec[operand - RDST_OPERAND].fpr = true;
+      break;
+    default:
+      assert(0);
+      break;
+  }
+}
 
 #endif /* RISCV_ENABLE_DBG_TRACE */
 
