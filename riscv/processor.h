@@ -84,8 +84,8 @@ public:
   void set_fromhost(reg_t val);
   void set_interrupt(int which, bool on);
   reg_t get_pcr(int which);
-  reg_t write_exec_ctrl_cr(reg_t regnum, reg_t new_val) { return htif_exec_ctrl.write_cr(regnum, new_val); }
-  reg_t read_exec_ctrl_cr(reg_t regnum) { return htif_exec_ctrl.read_cr(regnum); }
+  reg_t write_exec_ctrl_cr(reg_t regnum, reg_t new_val);
+  reg_t read_exec_ctrl_cr(reg_t regnum) { return htif_exec_ctrl.read_cr(regnum, retired); }
   mmu_t* get_mmu() { return mmu; }
   state_t* get_state() { return &state; }
   extension_t* get_extension() { return ext; }
@@ -145,6 +145,7 @@ private:
 #endif
 
   state_t state;
+  uint64_t retired; // instructions retired since the processor was created, updated at batch boundaries
   uint32_t id;
   bool run; // !reset
   bool debug;
@@ -173,6 +174,9 @@ private:
 
   void build_opcode_map();
   insn_func_t decode_insn(insn_t insn);
+
+  // runs instead of the instruction at an armed PC breakpoint (see mmu_t::access_icache)
+  static reg_t pc_breakpoint_hit(processor_t* p, insn_t insn, reg_t pc);
 };
 
 reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);

@@ -36,14 +36,10 @@ void processor_t::pre_execute_insn(reg_t pc, insn_t insn)
 #ifdef RISCV_ENABLE_DBG_TRACE
   get_dbg_tracer()->trace_before_insn_execute(pc, insn);
 #endif
-
-  htif_exec_ctrl.pre_execution_check(pc);
 }
 
 void processor_t::post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapped)
 {
-  htif_exec_ctrl.on_instret_increment();
-
 #ifdef RISCV_ENABLE_DBG_TRACE
   dbg_tracer->increment_instret();
   if (!trapped) dbg_tracer->trace_after_insn_execute(pc, npc);

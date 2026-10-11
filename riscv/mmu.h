@@ -141,6 +141,8 @@ public:
     }
 
     insn_fetch_t fetch = {proc->decode_insn(insn), insn};
+    if (unlikely(proc->htif_exec_ctrl.is_pc_break(addr)))
+      fetch.func = &processor_t::pc_breakpoint_hit;
     icache[idx].tag = addr;
     icache[idx].data = fetch;
 
@@ -151,6 +153,12 @@ public:
       tracer.trace(paddr, 1, false, true);
     }
     return &icache[idx];
+  }
+
+  // true if the instruction at addr is in the icache
+  inline bool icache_has(reg_t addr)
+  {
+    return icache[icache_index(addr)].tag == addr;
   }
 
   inline insn_fetch_t load_insn(reg_t addr)

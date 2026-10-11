@@ -29,7 +29,7 @@ extern bool logging_on;
 
 processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
   : sim(_sim), mmu(_mmu), ext(NULL), disassembler(new disassembler_t),
-    id(_id), run(false), debug(false), serialized(false), waiting_host(false)
+    retired(0), id(_id), run(false), debug(false), serialized(false), waiting_host(false)
 {
 #ifdef RISCV_ENABLE_DBG_TRACE
   dbg_tracer = new debug_tracer_t(*this);
@@ -251,6 +251,14 @@ size_t processor_t::step(const size_t n)
 
   size_t instret = 0;
 
+  // End a batch at pc, once new_instret instructions in total have retired in this step.
+  auto commit = [this, &instret](reg_t pc, size_t new_instret) {
+    update_timer(&state, new_instret - instret);
+    state.pc = pc;
+    retired += new_instret - instret;
+    instret = new_instret;
+  };
+
   // Traps taken in a row without retiring any instruction, and the instret at the last one.
   size_t idle_traps = 0;
   size_t instret_at_last_trap = 0;
@@ -260,7 +268,8 @@ size_t processor_t::step(const size_t n)
   {
     // The state is precise between batches. A frozen HART waits here for the host to defrost it, servicing the HTIF
     // (like a system call waits for the host), whatever its next instruction is. The host may replace the state meanwhile.
-    while (unlikely(htif_exec_ctrl.apply_boundary_triggers()))
+    uint64_t cnt_down_max_retire;
+    while (unlikely(htif_exec_ctrl.at_batch_boundary(retired, cnt_down_max_retire)))
     {
       // The host has stopped the simulation and will never defrost the core.
       if (unlikely(!sim->get_htif()->tick())) return instret;
@@ -268,6 +277,9 @@ size_t processor_t::step(const size_t n)
 
     // Maximum allowed instret after the batch.
     size_t batch_instret_max = std::min(n, instret + (next_timer(&state) | 1U));
+    // End the batch where the count down runs out, it triggers at the next boundary.
+    if (unlikely(cnt_down_max_retire < batch_instret_max - instret))
+      batch_instret_max = instret + cnt_down_max_retire;
 
     // Instruction budget for the current batch.
     auto batch_instret_budget = batch_instret_max - instret;
@@ -281,6 +293,10 @@ size_t processor_t::step(const size_t n)
       {
         while (batch_instret_budget > 0)
         {
+          // The host changed the execution control during the last instruction: end the batch, the next boundary
+          // applies the change.
+          if (unlikely(htif_exec_ctrl.needs_attention())) break;
+
           insn_fetch_t fetch = mmu->load_insn(pc);
           disasm(fetch.insn);
           pc = execute_insn(pc, fetch);
@@ -292,6 +308,10 @@ size_t processor_t::step(const size_t n)
       {
         while (batch_instret_budget > 0)
         {
+          // The host changed the execution control during the last instruction (from an HTIF tick in it), which also
+          // flushed the icache: end the batch, the next boundary applies the change. Only checked on an icache miss.
+          if (unlikely(!mmu->icache_has(pc)) && unlikely(htif_exec_ctrl.needs_attention())) break;
+
           const size_t idx = mmu->icache_index(pc);
           auto ic_entry = mmu->access_icache(pc);
 
@@ -320,11 +340,7 @@ size_t processor_t::step(const size_t n)
         }
       }
 
-      // Update state
-      auto new_instret = batch_instret_max - batch_instret_budget;
-      update_timer(&state, new_instret - instret);
-      state.pc = pc;
-      instret = new_instret;
+      commit(pc, batch_instret_max - batch_instret_budget);
     }
     catch (trap_t &t)
     {
@@ -341,12 +357,7 @@ size_t processor_t::step(const size_t n)
         post_execute_insn(pc, insn_t(is_scall ? MATCH_SCALL : MATCH_SBREAK), trap_handler, true);
       }
 
-      // Update state
-      pc = trap_handler;
-      auto new_instret = batch_instret_max - batch_instret_budget;
-      update_timer(&state, new_instret - instret);
-      state.pc = pc;
-      instret = new_instret;
+      commit(trap_handler, batch_instret_max - batch_instret_budget);
 
       // A core trapping over and over without retiring anything won't make progress by itself.
       idle_traps = instret == instret_at_last_trap ? idle_traps + 1 : 1;
@@ -360,12 +371,7 @@ size_t processor_t::step(const size_t n)
 #ifdef RISCV_ENABLE_DBG_TRACE
       dbg_tracer->trace_cancel_insn();
 #endif
-
-      // Update state
-      auto new_instret = batch_instret_max - batch_instret_budget;
-      update_timer(&state, new_instret - instret);
-      state.pc = pc;
-      instret = new_instret;
+      commit(pc, batch_instret_max - batch_instret_budget);
     }
     catch (core_frozen_t &f)
     {
@@ -375,10 +381,7 @@ size_t processor_t::step(const size_t n)
       dbg_tracer->trace_cancel_insn();
 #endif
       // End the batch here, the core waits to be defrosted at the start of the next one, with a precise state.
-      auto new_instret = batch_instret_max - batch_instret_budget;
-      update_timer(&state, new_instret - instret);
-      state.pc = pc;
-      instret = new_instret;
+      commit(pc, batch_instret_max - batch_instret_budget);
     }
     catch (host_stopped_t &s)
     {
@@ -390,6 +393,24 @@ size_t processor_t::step(const size_t n)
 
   assert(n == instret);
   return instret;
+}
+
+reg_t processor_t::pc_breakpoint_hit(processor_t* p, insn_t insn, reg_t pc)
+{
+  p->htif_exec_ctrl.trigger_pc_break(pc);
+  // The breakpoint is disarmed: drop the icache entry that runs this stub
+  p->mmu->flush_icache();
+  throw core_frozen_t();
+}
+
+reg_t processor_t::write_exec_ctrl_cr(reg_t regnum, reg_t new_val)
+{
+  reg_t old_val = htif_exec_ctrl.write_cr(regnum, new_val, retired);
+  // Install or drop the PC breakpoint stubs (see mmu_t::access_icache), and make the stepping loop leave its run of
+  // cached instructions, so that it notices the change at the next instruction boundary.
+  if (htif_exec_ctrl.needs_attention())
+    mmu->flush_icache();
+  return old_val;
 }
 
 reg_t processor_t::take_trap(trap_t& t, reg_t epc)
