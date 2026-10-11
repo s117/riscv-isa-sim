@@ -37,11 +37,7 @@ void debug_tracer_t::register_trace_output(std::unique_ptr<trace_output_t> trace
 }
 
 
-void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
-  if (!(m_enabled = m_enabling_instret <= m_instret)) {
-    return;
-  }
-
+void debug_tracer_t::trace_before_insn_ic_fetch_slow(reg_t pc) {
   m_rec_insn.pc = pc;
   m_rec_insn.next_pc = 0;
   m_rec_insn.seqno = m_insn_seq;
@@ -50,10 +46,7 @@ void debug_tracer_t::trace_before_insn_ic_fetch(reg_t pc) {
   m_rec_insn.valid = true;
 }
 
-void debug_tracer_t::trace_before_insn_execute(reg_t pc, insn_t insn) {
-  if (!m_enabled)
-    return;
-
+void debug_tracer_t::trace_before_insn_execute_slow(reg_t pc, insn_t insn) {
   if (!m_rec_insn.valid) {
     trace_before_insn_ic_fetch(pc);
   }
@@ -64,10 +57,7 @@ void debug_tracer_t::trace_before_insn_execute(reg_t pc, insn_t insn) {
   m_rec_insn.good = true;
 }
 
-void debug_tracer_t::trace_after_insn_execute(reg_t pc, reg_t next_pc) {
-  if (!m_enabled)
-    return;
-
+void debug_tracer_t::trace_after_insn_execute_slow(reg_t pc, reg_t next_pc) {
   assert(m_rec_insn.valid);
   assert(m_rec_insn.pc == pc);
 
@@ -77,9 +67,7 @@ void debug_tracer_t::trace_after_insn_execute(reg_t pc, reg_t next_pc) {
   drain_curr_record();
 }
 
-void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
-  if (!m_enabled)
-    return;
+void debug_tracer_t::trace_after_take_trap_slow(trap_t &t, reg_t epc, reg_t new_pc) {
   if (m_rec_insn.valid) {
     // the trap is caused by an instruction (sync exception)
     assert(m_rec_insn.pc == epc);
@@ -107,17 +95,7 @@ void debug_tracer_t::trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
   }
 }
 
-void debug_tracer_t::trace_cancel_insn() {
-  if (!m_enabled)
-    return;
-
-  clear_curr_record();
-}
-
-void debug_tracer_t::trace_after_xpr_access(size_t rn, reg_t val, operand_t operand) {
-  if (!m_enabled)
-    return;
-
+void debug_tracer_t::trace_after_xpr_access_slow(size_t rn, reg_t val, operand_t operand) {
   assert(m_rec_insn.valid && m_rec_insn.good);
 
   switch (operand) {
@@ -143,10 +121,7 @@ void debug_tracer_t::trace_after_xpr_access(size_t rn, reg_t val, operand_t oper
   }
 }
 
-void debug_tracer_t::trace_after_fpr_access(size_t rn, freg_t val, operand_t operand) {
-  if (!m_enabled)
-    return;
-
+void debug_tracer_t::trace_after_fpr_access_slow(size_t rn, freg_t val, operand_t operand) {
   assert(m_rec_insn.valid && m_rec_insn.good);
 
   switch (operand) {
@@ -172,10 +147,7 @@ void debug_tracer_t::trace_after_fpr_access(size_t rn, freg_t val, operand_t ope
   }
 }
 
-void debug_tracer_t::trace_before_dc_translate(reg_t vaddr, size_t size, bool write) {
-  if (!m_enabled)
-    return;
-
+void debug_tracer_t::trace_before_dc_translate_slow(reg_t vaddr, size_t size, bool write) {
   assert(m_rec_insn.valid && m_rec_insn.good);
 
   m_rec_insn.mem_rec.vaddr = vaddr;
@@ -184,10 +156,7 @@ void debug_tracer_t::trace_before_dc_translate(reg_t vaddr, size_t size, bool wr
   m_rec_insn.mem_rec.valid = true;
 }
 
-void debug_tracer_t::trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write) {
-  if (!m_enabled)
-    return;
-
+void debug_tracer_t::trace_after_dc_access_slow(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write) {
   assert(
     m_rec_insn.valid &&
     m_rec_insn.good &&

@@ -46,9 +46,9 @@ void processor_t::post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapp
 #endif
 
 #ifdef RISCV_ENABLE_SIMPOINT
-  ++num_bb_inst;
   if (simpoint_enabled)
   {
+    ++num_bb_inst;
     reg_t opcode = insn.opcode();
     if (opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH)
     {

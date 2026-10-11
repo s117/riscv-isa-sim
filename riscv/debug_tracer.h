@@ -148,32 +148,71 @@ public:
 
   void clear_trace_output() { m_trace_output.clear(); }
 
-  void trace_before_insn_ic_fetch(reg_t pc);
+  // The trace_*() functions run for every instruction: they only test m_enabled inline, the recording is out of line.
 
-  void trace_before_insn_execute(reg_t pc, insn_t insn);
+  void trace_before_insn_ic_fetch(reg_t pc) {
+    if (unlikely(m_enabled = m_enabling_instret <= m_instret)) trace_before_insn_ic_fetch_slow(pc);
+  }
 
-  void trace_after_xpr_access(size_t rn, reg_t val, operand_t operand);
+  void trace_before_insn_execute(reg_t pc, insn_t insn) {
+    if (unlikely(m_enabled)) trace_before_insn_execute_slow(pc, insn);
+  }
 
-  void trace_after_fpr_access(size_t rn, freg_t val, operand_t operand);
+  void trace_after_xpr_access(size_t rn, reg_t val, operand_t operand) {
+    if (unlikely(m_enabled)) trace_after_xpr_access_slow(rn, val, operand);
+  }
 
-  void trace_before_dc_translate(reg_t vaddr, size_t size, bool write);
+  void trace_after_fpr_access(size_t rn, freg_t val, operand_t operand) {
+    if (unlikely(m_enabled)) trace_after_fpr_access_slow(rn, val, operand);
+  }
 
-  void trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write);
+  void trace_before_dc_translate(reg_t vaddr, size_t size, bool write) {
+    if (unlikely(m_enabled)) trace_before_dc_translate_slow(vaddr, size, write);
+  }
 
-  void trace_after_insn_execute(reg_t pc, reg_t next_pc);
+  void trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write) {
+    if (unlikely(m_enabled)) trace_after_dc_access_slow(vaddr, paddr, val, size, write);
+  }
 
-  void trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc);
+  void trace_after_insn_execute(reg_t pc, reg_t next_pc) {
+    if (unlikely(m_enabled)) trace_after_insn_execute_slow(pc, next_pc);
+  }
+
+  void trace_after_take_trap(trap_t &t, reg_t epc, reg_t new_pc) {
+    if (unlikely(m_enabled)) trace_after_take_trap_slow(t, epc, new_pc);
+  }
 
   // discard the record of the instruction in flight, as it didn't execute and will be fetched again
-  void trace_cancel_insn();
+  void trace_cancel_insn() {
+    if (unlikely(m_enabled)) clear_curr_record();
+  }
 
   bool enabled() { return m_enabled; };
+
+  // the flag tested by the trace_*() functions, so that the processor's register accessors can test it inline
+  const bool *enabled_flag() const { return &m_enabled; }
 
   void increment_instret() { ++m_instret; };
 
   const insn_record_t &get_current_insn_info();
 
 private:
+  void trace_before_insn_ic_fetch_slow(reg_t pc);
+
+  void trace_before_insn_execute_slow(reg_t pc, insn_t insn);
+
+  void trace_after_xpr_access_slow(size_t rn, reg_t val, operand_t operand);
+
+  void trace_after_fpr_access_slow(size_t rn, freg_t val, operand_t operand);
+
+  void trace_before_dc_translate_slow(reg_t vaddr, size_t size, bool write);
+
+  void trace_after_dc_access_slow(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write);
+
+  void trace_after_insn_execute_slow(reg_t pc, reg_t next_pc);
+
+  void trace_after_take_trap_slow(trap_t &t, reg_t epc, reg_t new_pc);
+
   void drain_curr_record();
 
   void clear_curr_record();

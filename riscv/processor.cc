@@ -33,6 +33,7 @@ processor_t::processor_t(sim_t* _sim, mmu_t* _mmu, uint32_t _id)
 {
 #ifdef RISCV_ENABLE_DBG_TRACE
   dbg_tracer = new debug_tracer_t(*this);
+  dbg_trace_enabled = dbg_tracer->enabled_flag();
 #endif
 
   reset(true);
@@ -151,30 +152,14 @@ void processor_t::set_simpoint(bool enable, size_t interval)
 #endif
 
 #ifdef RISCV_ENABLE_DBG_TRACE
-reg_t processor_t::rd_xpr(size_t rn, operand_t operand)
+void processor_t::trace_xpr_access(size_t rn, reg_t val, operand_t operand)
 {
-  auto val = state.XPR[rn];
   dbg_tracer->trace_after_xpr_access(rn, val, operand);
-  return val;
 }
 
-void processor_t::wr_xpr(size_t rn, reg_t val)
+void processor_t::trace_fpr_access(size_t rn, freg_t val, operand_t operand)
 {
-  state.XPR.write(rn, val);
-  dbg_tracer->trace_after_xpr_access(rn, val, RDST_OPERAND);
-}
-
-freg_t processor_t::rd_fpr(size_t rn, operand_t operand)
-{
-  auto val = state.FPR[rn];
   dbg_tracer->trace_after_fpr_access(rn, val, operand);
-  return val;
-}
-
-void processor_t::wr_fpr(size_t rn, freg_t val)
-{
-  state.FPR.write(rn, val);
-  dbg_tracer->trace_after_fpr_access(rn, val, RDST_OPERAND);
 }
 #endif
 
