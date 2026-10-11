@@ -19,6 +19,8 @@ debug_tracer_t::debug_tracer_t(processor_t &target_processor)
       m_enabling_instret(UINT64_MAX),
       m_enabled(false),
       m_record_fields(0),
+      m_trace_operands(false),
+      m_trace_memory(false),
       m_tgt_proc(target_processor),
       m_rec_insn() {
   memset(&m_rec_insn, 0, sizeof(m_rec_insn));
@@ -27,20 +29,36 @@ debug_tracer_t::debug_tracer_t(processor_t &target_processor)
 void debug_tracer_t::enable_trace(uint64_t skip_amount) {
   m_instret = m_tgt_proc.get_state()->count;
   m_enabling_instret = m_instret + skip_amount;
+  stop_if_not_reached();
 }
 
 void debug_tracer_t::disable_trace() {
   m_enabling_instret = UINT64_MAX;
+  stop_if_not_reached();
+}
+
+void debug_tracer_t::stop_if_not_reached() {
+  if (m_enabled && m_enabling_instret > m_instret) {
+    // the record in flight, if any, is dropped
+    m_enabled = false;
+    update_part_flags();
+    clear_curr_record();
+  }
 }
 
 void debug_tracer_t::register_trace_output(std::unique_ptr<trace_output_t> trace_output) {
   if (!trace_output) return;
   m_record_fields |= trace_output->record_fields();
+  update_part_flags();
   m_trace_output.emplace_back(std::move(trace_output));
 }
 
 
 void debug_tracer_t::trace_before_insn_ic_fetch_slow(reg_t pc) {
+  if (unlikely(!m_enabled)) {
+    m_enabled = true;
+    update_part_flags();
+  }
   begin_record(pc);
 }
 

@@ -119,29 +119,29 @@ public:
 
 #ifdef RISCV_ENABLE_DBG_TRACE
   debug_tracer_t* get_dbg_tracer() { return dbg_tracer; };
-  // Register accesses of the instructions, reported to the debug tracer while it traces. They test its enabled flag
+  // Register accesses of the instructions, reported to the debug tracer while it records them. They test its flag
   // inline, as they run several times per instruction (debug_tracer.h can't be included here).
   reg_t rd_xpr(size_t rn, operand_t operand)
   {
     reg_t val = state.XPR[rn];
-    if (unlikely(*dbg_trace_enabled)) trace_xpr_access(rn, val, operand);
+    if (unlikely(*dbg_trace_operands)) trace_xpr_access(rn, val, operand);
     return val;
   }
   void wr_xpr(size_t rn, reg_t val)
   {
     state.XPR.write(rn, val);
-    if (unlikely(*dbg_trace_enabled)) trace_xpr_access(rn, val, RDST_OPERAND);
+    if (unlikely(*dbg_trace_operands)) trace_xpr_access(rn, val, RDST_OPERAND);
   }
   freg_t rd_fpr(size_t rn, operand_t operand)
   {
     freg_t val = state.FPR[rn];
-    if (unlikely(*dbg_trace_enabled)) trace_fpr_access(rn, val, operand);
+    if (unlikely(*dbg_trace_operands)) trace_fpr_access(rn, val, operand);
     return val;
   }
   void wr_fpr(size_t rn, freg_t val)
   {
     state.FPR.write(rn, val);
-    if (unlikely(*dbg_trace_enabled)) trace_fpr_access(rn, val, RDST_OPERAND);
+    if (unlikely(*dbg_trace_operands)) trace_fpr_access(rn, val, RDST_OPERAND);
   }
 #endif
 
@@ -162,7 +162,7 @@ private:
 
 #ifdef RISCV_ENABLE_DBG_TRACE
   debug_tracer_t* dbg_tracer;
-  const bool* dbg_trace_enabled; // the debug tracer's enabled flag
+  const bool* dbg_trace_operands; // the debug tracer's flag for recording register accesses
   void trace_xpr_access(size_t rn, reg_t val, operand_t operand);
   void trace_fpr_access(size_t rn, freg_t val, operand_t operand);
 #endif

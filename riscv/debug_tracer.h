@@ -167,12 +167,15 @@ public:
   void clear_trace_output() {
     m_trace_output.clear();
     m_record_fields = 0;
+    update_part_flags();
   }
 
   // The trace_*() functions run for every instruction: they only test m_enabled inline, the recording is out of line.
 
+  // Tracing starts at the first fetch once m_enabling_instret is reached (see trace_before_insn_ic_fetch_slow()), and
+  // stops right away when enable_trace() or disable_trace() moves m_enabling_instret ahead.
   void trace_before_insn_ic_fetch(reg_t pc) {
-    if (unlikely(m_enabled = m_enabling_instret <= m_instret)) trace_before_insn_ic_fetch_slow(pc);
+    if (unlikely(m_enabling_instret <= m_instret)) trace_before_insn_ic_fetch_slow(pc);
   }
 
   void trace_before_insn_execute(reg_t pc, insn_t insn) {
@@ -180,19 +183,19 @@ public:
   }
 
   void trace_after_xpr_access(size_t rn, reg_t val, operand_t operand) {
-    if (unlikely(m_enabled)) trace_after_xpr_access_slow(rn, val, operand);
+    if (unlikely(m_trace_operands)) trace_after_xpr_access_slow(rn, val, operand);
   }
 
   void trace_after_fpr_access(size_t rn, freg_t val, operand_t operand) {
-    if (unlikely(m_enabled)) trace_after_fpr_access_slow(rn, val, operand);
+    if (unlikely(m_trace_operands)) trace_after_fpr_access_slow(rn, val, operand);
   }
 
   void trace_before_dc_translate(reg_t vaddr, size_t size, bool write) {
-    if (unlikely(m_enabled)) trace_before_dc_translate_slow(vaddr, size, write);
+    if (unlikely(m_trace_memory)) trace_before_dc_translate_slow(vaddr, size, write);
   }
 
   void trace_after_dc_access(reg_t vaddr, reg_t paddr, freg_t val, size_t size, bool write) {
-    if (unlikely(m_enabled)) trace_after_dc_access_slow(vaddr, paddr, val, size, write);
+    if (unlikely(m_trace_memory)) trace_after_dc_access_slow(vaddr, paddr, val, size, write);
   }
 
   void trace_after_insn_execute(reg_t pc, reg_t next_pc) {
@@ -210,8 +213,9 @@ public:
 
   bool enabled() { return m_enabled; };
 
-  // the flag tested by the trace_*() functions, so that the processor's register accessors can test it inline
-  const bool *enabled_flag() const { return &m_enabled; }
+  // the flag tested by trace_after_xpr_access() and trace_after_fpr_access(), so that the processor's register
+  // accessors can test it inline
+  const bool *operands_flag() const { return &m_trace_operands; }
 
   void increment_instret() { ++m_instret; };
 
@@ -233,6 +237,15 @@ private:
   void trace_after_insn_execute_slow(reg_t pc, reg_t next_pc);
 
   void trace_after_take_trap_slow(trap_t &t, reg_t epc, reg_t new_pc);
+
+  // Stop tracing if m_enabling_instret is ahead.
+  void stop_if_not_reached();
+
+  // Recompute the flags of the record parts from m_enabled and m_record_fields.
+  void update_part_flags() {
+    m_trace_operands = m_enabled && (m_record_fields & TRACE_OPERANDS);
+    m_trace_memory = m_enabled && (m_record_fields & TRACE_MEMORY);
+  }
 
   // Start the record of the instruction at pc.
   void begin_record(reg_t pc) {
@@ -256,6 +269,8 @@ private:
   uint64_t m_enabling_instret;
   bool m_enabled;
   unsigned m_record_fields; // TRACE_* parts asked for by the outputs
+  bool m_trace_operands; // tracing, and recording the TRACE_OPERANDS part
+  bool m_trace_memory; // tracing, and recording the TRACE_MEMORY part
   processor_t &m_tgt_proc;
   insn_record_t m_rec_insn;
   std::vector<std::unique_ptr<trace_output_t>> m_trace_output;
