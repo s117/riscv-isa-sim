@@ -237,7 +237,9 @@ static size_t next_timer(state_t* state)
 
 /**
  * Step for either 0 or exact n instructions. Fewer than n instructions are stepped only if
- * the host stops the simulation while the core is waiting on it.
+ * the host stops the simulation while the core is waiting on it, or if the core takes n traps
+ * in a row without retiring any instruction (it can't make progress, only the host can change
+ * that, so let the caller tick the HTIF).
  *
  * @param n Number of instruction to step
  * @return size_t Number of instructions stepped.
@@ -248,6 +250,10 @@ size_t processor_t::step(const size_t n)
     return 0;
 
   size_t instret = 0;
+
+  // Traps taken in a row without retiring any instruction, and the instret at the last one.
+  size_t idle_traps = 0;
+  size_t instret_at_last_trap = 0;
 
   // Simulating instructions in batch.
   while (instret < n)
@@ -341,6 +347,11 @@ size_t processor_t::step(const size_t n)
       update_timer(&state, new_instret - instret);
       state.pc = pc;
       instret = new_instret;
+
+      // A core trapping over and over without retiring anything won't make progress by itself.
+      idle_traps = instret == instret_at_last_trap ? idle_traps + 1 : 1;
+      instret_at_last_trap = instret;
+      if (unlikely(idle_traps >= n)) return instret;
     }
     catch (serialize_t &s)
     {
