@@ -15,6 +15,7 @@ set(
         mmu.h
         processor.h
         processor_execution_controller.h
+        hart_state_codec.h
         sim.h
         trap.h
         encoding.h
@@ -36,6 +37,7 @@ set(
         riscv_srcs
         htif.cc
         processor.cc
+        hart_state_codec.cc
         stream_compression.cc
         sim.cc
         interactive.cc

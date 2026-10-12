@@ -14,6 +14,7 @@ riscv_hdrs = \
 	processor.h \
 	execute_insn_hook.h \
 	processor_execution_controller.h \
+	hart_state_codec.h \
 	sim.h \
 	trap.h \
 	encoding.h \
@@ -33,6 +34,7 @@ riscv_precompiled_hdrs = \
 riscv_srcs = \
 	htif.cc \
 	processor.cc \
+	hart_state_codec.cc \
 	stream_compression.cc \
 	sim.cc \
 	interactive.cc \

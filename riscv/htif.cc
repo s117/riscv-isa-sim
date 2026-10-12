@@ -4,6 +4,7 @@
 #include "sim.h"
 #include "encoding.h"
 #include "stream_compression.h"
+#include "hart_state_codec.h"
 #include <unistd.h>
 #include <stdexcept>
 #include <stdlib.h>
@@ -171,13 +172,14 @@ void htif_isasim_t::tick_once()
       reg_t coreid = hdr.addr;
       const state_t *core_state = sim->get_core(coreid)->get_state();
 
-      size_t ds = (sizeof(state_t) + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN;
-      std::vector<uint8_t> padded_buf(ds * HTIF_DATA_ALIGN, 0);
-      memcpy(padded_buf.data(), core_state, sizeof(*core_state));
+      // In the portable format of fesvr/hart_state_format.h, always a multiple of HTIF_DATA_ALIGN bytes
+      std::vector<uint8_t> state_buf = encode_hart_state(*core_state);
+      assert(state_buf.size() % HTIF_DATA_ALIGN == 0);
+      size_t ds = state_buf.size() / HTIF_DATA_ALIGN;
 
-      packet_header_t ack(HTIF_CMD_ACK, seqno++, ds, sizeof(state_t)); // use addr to pass the actual size of the dumped state
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, ds, state_buf.size()); // use addr to pass the actual size of the dumped state
       send(&ack, sizeof(ack));
-      send(padded_buf.data(), padded_buf.size());
+      send(state_buf.data(), state_buf.size());
       break;
     }
     case HTIF_CMD_UPLOAD_HART_FULL_STATE:
@@ -188,21 +190,21 @@ void htif_isasim_t::tick_once()
       processor_t *proc = sim->get_core(coreid);
       state_t *core_state = proc->get_state();
 
-      // The state must be the padded size of this build's state_t, as sent by HTIF_CMD_DOWNLOAD_HART_FULL_STATE
-      const size_t expected_payload_size = (sizeof(state_t) + HTIF_DATA_ALIGN - 1) / HTIF_DATA_ALIGN * HTIF_DATA_ALIGN;
-      if (p.get_payload_size() != expected_payload_size)
+      // The state is in the portable format of fesvr/hart_state_format.h
+      try
+      {
+        decode_hart_state((const uint8_t *) p.get_payload(), p.get_payload_size(), *core_state);
+      }
+      catch (const std::runtime_error &e)
+      {
         throw std::runtime_error(
-          "Error happened while loading the full state of HART " + std::to_string(coreid) + ": the host sent " +
-          std::to_string(p.get_payload_size()) + " bytes, but this simulator expects " +
-          std::to_string(expected_payload_size) + " bytes. The state was probably dumped by a different build.");
-
-      const uint8_t *buf = (const uint8_t *) p.get_payload();
-      memcpy(core_state, buf, sizeof(*core_state));
+          "Error happened while loading the full state of HART " + std::to_string(coreid) + ": " + e.what() + ".");
+      }
       // Recompute what is derived from the status register (e.g. rv64), and flush the TLB and icache
       // that were filled before the state was loaded.
       proc->set_pcr(CSR_STATUS, core_state->sr);
 
-      packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, sizeof(state_t)); // use addr to pass the actual size of the data used
+      packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, p.get_payload_size()); // use addr to pass the actual size of the data used
       send(&ack, sizeof(ack));
       break;
     }
