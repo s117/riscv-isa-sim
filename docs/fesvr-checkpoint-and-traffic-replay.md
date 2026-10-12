@@ -30,7 +30,7 @@ The mechanism has three parts:
 - **Replay.** A later run is given the recording instead of the real host environment. Each command is answered from the recording: the recorded writes are applied to target memory, the recorded reads are checked against target memory, and the recorded response is returned. Nothing runs on the host. The recording also keeps a copy of the ELF loaded at boot (pk) as `boot.elf`, so the replayed run needs nothing but the recording: not pk, not the program's files or sysroot, and not its command-line arguments, which pk fetches through a system call that is also replayed.
 - **Checkpoints.** A replaying run can stop at chosen instruction counts and save a checkpoint. A checkpoint holds the hart's architectural state, all of target memory, and the position in the recording. Loading one restores that state, moves the recording to the same position, and continues from there.
 
-Because the recording supplies everything the program needs, a checkpoint can be simulated without recreating the program's environment. This mechanism replaces spike's former `-c` and `--make-checkpoint` options, which have been removed.
+Because the recording supplies everything the program needs, a checkpoint can be simulated without recreating the program's environment. Recordings and checkpoints are also portable across hosts: one made on an x86-64 Linux machine replays and loads on an ARM64 Linux server or an Apple Silicon Mac ([Portability](#portability)). This mechanism replaces spike's former `-c` and `--make-checkpoint` options, which have been removed.
 
 Typical workflow:
 
@@ -221,7 +221,7 @@ The guarantee depends on these conditions:
 - **Synchronous host communication only.** The program talks to the host only through the system call device, as pk does. Devices that answer later, such as console input (bcd), disk and rfb, make the number of polling iterations depend on HTIF timing. A response that arrives after its command was serviced can't be recorded; the FESVR prints a warning when that happens.
 - **No extra interrupts.** The guest enables no interrupts beyond what pk does.
 - **One hart.**
-- **Same spike build, memory size and pk binary.**
+- **Same spike source, memory size and pk binary.** The host machine, compiler and build system may differ ([Portability](#portability)).
 
 
 ## 6. How checkpoints work
@@ -275,7 +275,7 @@ With `+load-checkpoint` and `+dev-traffic-replay` (`htif_t::start`, `load_checkp
 1. No ELF is loaded. The hart is reset and frozen at its first instruction.
 2. The checkpoint header is checked: magic, hart count, memory size.
 3. The checkpoint's recording SHA-256 is compared with the replayed recording's.
-4. The hart state is uploaded. spike checks its size against this build's `state_t`, then re-applies the status register and flushes its TLB and instruction cache.
+4. The hart state is checked by the FESVR (format and size) and uploaded. spike decodes it into its `state_t`, rejecting a state with missing, unknown or duplicate entries, then re-applies the status register and flushes its TLB and instruction cache.
 5. The recording is moved to the stored position.
 6. The memory image is streamed into target memory. spike flushes every hart's TLB and instruction cache again.
 7. The recording's target spec (memory size, hart count, pk SHA-256) is checked against the restored system.
@@ -284,7 +284,7 @@ With `+load-checkpoint` and `+dev-traffic-replay` (`htif_t::start`, `load_checkp
 ### What a checkpoint contains
 
 **Saved:**
-- each hart's `state_t`: PC, integer and FP registers, the CSRs spike keeps there, `count`, `tohost`/`fromhost`, the load reservation;
+- each hart's state, in a portable format ([Hart state](#hart-state)): PC, integer and FP registers, the CSRs spike keeps, `count`, `tohost`/`fromhost`, the load reservation;
 - all of target memory;
 - per hart: the number of commands already serviced, and the SHA-256 of the recording it belongs to;
 - the SHA-256 of the ELF the original run loaded.
@@ -342,12 +342,12 @@ The transport (`htif_pthread_t`) carries at most 16384 bytes per packet. On the 
 - Read: request with no payload; reply with the 8-byte value.
 - Write: request with the 8-byte new value; reply with the old value.
 
-**Hart state download.** Request `addr = hart`. The reply is a raw copy of spike's `state_t`, zero-padded to 8 bytes; its `addr` field carries `sizeof(state_t)`.
+**Hart state download.** Request `addr = hart`. The reply is the hart's state in the portable format ([Hart state](#hart-state)), always a multiple of 8 bytes; its `addr` field carries its size.
 
 **Hart state upload.**
-- The request carries the padded state.
-- spike rejects a size other than its own padded `sizeof(state_t)`.
-- Otherwise it copies the state, re-applies the status register, flushes the TLB and instruction cache, and acknowledges.
+- The request carries a state in the same format.
+- spike decodes it into a copy of its state and rejects it, with the reason, if it is malformed or has a missing, unknown or duplicate entry. A rejected state changes nothing.
+- Otherwise it installs the state, re-applies the status register, flushes the TLB and instruction cache, and acknowledges.
 
 **Memory dump download** (checkpoint creation):
 
@@ -376,7 +376,19 @@ spike decompresses each chunk into memory as it arrives (`riscv/stream_compressi
 
 ## 9. File formats
 
-All integers are little-endian (host order on x86), and all structures are packed. Offsets are in bytes.
+All integers are little-endian, and all structures are packed. Offsets are in bytes.
+
+### Portability
+
+Recordings and checkpoints can be created on one machine and replayed or loaded on another, with a different host ISA, operating system, compiler or build system. For example, record and create checkpoints on x86-64 Linux, then load them on an ARM64 Linux server or an Apple Silicon Mac.
+
+- **The files don't depend on the host.** Every format below is little-endian with fixed-width fields. The recording and checkpoint headers are packed structs whose sizes and field offsets are checked at compile time (`riscv-fesvr/fesvr/device_traffic_format.h`, `checkpoint_format.h`). The hart state is encoded field by field ([Hart state](#hart-state)), so it doesn't depend on spike's `state_t` layout, build options or host ABI either.
+- **Execution doesn't depend on the host.** Floating point is computed by softfloat in software, and spike handles the integer corner cases (division by zero, overflow, shift amounts) explicitly, so a replay retires the same instructions with the same results on any host. If it ever didn't, the replay's checks would stop it at the first difference.
+- **Supported hosts are little-endian.** That covers x86-64 and ARM64. A big-endian host fails to build: `little_endian.h` refuses it, and softfloat assumes little-endian too.
+- **Record on Linux.** A recording run executes the program's system calls on the host. The FESVR translates `stat` structures but passes Linux open flags and errno values through unchanged, so only a Linux host records correctly. Replaying and loading checkpoints run no host system calls, so any supported host works for them.
+- **Use the same spike source on both machines.** Instruction semantics and the hart state format belong to the source, not to the host or build.
+
+To check a port, replay a recording made elsewhere to its end, and compare checkpoints made on both machines with `scripts/checkpoint-digest.py` ([Checkpoint file](#checkpoint-file)).
 
 ### Recording folder
 
@@ -390,9 +402,9 @@ All integers are little-endian (host order on x86), and all structures are packe
 | `device_traffic_hart<N>.index` | the offset of each command in `.packets` |
 | `device_traffic_hart<N>.sha256` | the SHA-256 of `.packets`; it identifies the recording |
 
-Recordings made before the spec file was renamed have `target_spec` instead of `target_spec.data`. Recordings made before the boot ELF was saved have no `boot.elf`: copy the boot ELF they were recorded with into the folder as `boot.elf` (the replay reports the SHA-256 it must have). A recording of a run that loaded no ELF has no `boot.elf` and an all-zero ELF SHA-256 in `target_spec.data`. `target_spec.data` and `boot.elf` are never compressed.
+The on-disk structures are defined in `riscv-fesvr/fesvr/device_traffic_format.h`. Recordings made before the spec file was renamed have `target_spec` instead of `target_spec.data`. Recordings made before the boot ELF was saved have no `boot.elf`: copy the boot ELF they were recorded with into the folder as `boot.elf` (the replay reports the SHA-256 it must have). A recording of a run that loaded no ELF has no `boot.elf` and an all-zero ELF SHA-256 in `target_spec.data`. `target_spec.data` and `boot.elf` are never compressed.
 
-**Compression.** In a CMake build, `FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT` is defined (`riscv-fesvr/fesvr/CMakeLists.txt`). The `.packets`, `.index` and `.sha256` files are then each a gzip stream. An autotools build writes them uncompressed. All offsets below refer to the uncompressed bytes. A gzip build can read an uncompressed recording, because zlib passes plain files through; an autotools build can't read a compressed one.
+**Compression.** The `.packets`, `.index` and `.sha256` files are each a gzip stream, in both the CMake and the autotools build. All offsets below refer to the uncompressed bytes. For debugging, a build with `FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT` set to 0 writes them uncompressed: the CMake option `-DFESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT=OFF`, or `-DFESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT=0` in the compiler flags. Every build reads both kinds, because zlib passes plain files through.
 
 **`target_spec.data`** (40 bytes):
 
@@ -426,10 +438,11 @@ Recordings made before the spec file was renamed have `target_spec` instead of `
 | Offset | Size | Field |
 |---|---|---|
 | 0 | 4 | magic `0x78642578` (bytes `78 25 64 78`) |
-| 4 | 4 | number of harts H |
-| 8 | 4 | memory size in MB |
-| 12 | 32 | SHA-256 of the ELF loaded by the original run (pk) |
-| 44 | 8236 × H | one record per hart |
+| 4 | 4 | format version, currently 1 |
+| 8 | 4 | number of harts H |
+| 12 | 4 | memory size in MB |
+| 16 | 32 | SHA-256 of the ELF loaded by the original run (pk) |
+| 48 | 8236 × H | one record per hart |
 
 Per-hart record (8236 bytes):
 
@@ -438,9 +451,36 @@ Per-hart record (8236 bytes):
 | 0 | 32 | SHA-256 of the recording (its `.sha256` digest) |
 | 32 | 8 | commands already serviced: the replay resumes at this command index |
 | 40 | 4 | size of the saved hart state |
-| 44 | 8192 | the hart state: spike's `state_t`, raw, zero-padded to 8 bytes; the rest is zero |
+| 44 | 8192 | the hart state ([Hart state](#hart-state)); the rest is zero |
 
-The header is followed by the zlib stream (`deflate`, level 9) of all target memory, running to the end of the file. It decompresses to exactly memory size × 2^20 bytes. A one-hart checkpoint's header is 8280 bytes. The file has no version field.
+The header is followed by the zlib stream (`deflate`, level 9) of all target memory, running to the end of the file. It decompresses to exactly memory size × 2^20 bytes. A one-hart checkpoint's header is 8284 bytes.
+
+**Version.** Any change to this layout bumps the format version, and a loader rejects versions it doesn't know. The hart state has a version of its own, as it is also exchanged with spike over the HTIF.
+
+**Comparing checkpoints.** `scripts/checkpoint-digest.py <file>…` prints a checkpoint's header fields, each hart's decoded state and the SHA-256 of its decompressed memory. Two checkpoints of the same point of a run have the same digest wherever they were created, even if their bytes differ: different zlib builds can compress the same memory differently.
+
+### Hart state
+
+The state of one hart, as saved in checkpoints and exchanged over the HTIF (`riscv-fesvr/fesvr/hart_state_format.h`; spike's side is `riscv/hart_state_codec.{h,cc}`). Every field is little-endian and encoded byte by byte:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 8 | magic: the ASCII bytes `RVHSTATE` |
+| 8 | 4 | format version, currently 1 |
+| 12 | 4 | number of entries N |
+| 16 | 16 × N | entries: `u32` id, `u32` reserved (0), `u64` value |
+
+Entry ids:
+
+| Id | Field |
+|---|---|
+| `0x000`–`0xfff` | the CSR with that address: `fflags` 0x001, `frm` 0x002, `sup0` 0x500, `sup1` 0x501, `epc` 0x502, `badvaddr` 0x503, `ptbr` 0x504, `count` 0x506, `compare` 0x507, `evec` 0x508, `cause` 0x509, `status` 0x50a, `tohost` 0x51e, `fromhost` 0x51f |
+| `0x1000 + i` | integer register `x[i]` (`x0` must be 0) |
+| `0x1100 + i` | floating-point register `f[i]`, raw bits |
+| `0x2000` | `pc` |
+| `0x2001` | the load reservation address, all ones when none |
+
+spike writes the 80 entries above (1,296 bytes) and requires exactly that set on load, in any order. Adding a field to the state takes a new id and a new format version.
 
 
 ## 10. Limitations
@@ -451,8 +491,9 @@ The header is followed by the zlib stream (`deflate`, level 9) of all target mem
 - **Exact match on load:** loading needs the same hart count, memory size, recording and pk binary as the run that created the checkpoint.
 
 **Hart state and build compatibility:**
-- **The hart state is a raw copy of spike's `state_t`.** A checkpoint is valid only for a spike build with the same `state_t` layout. A different size is rejected; a same-size layout change isn't detected.
-- **No version field** exists in the checkpoint or the recording formats.
+- **A checkpoint needs the spike that knows its state.** A spike with more or fewer state fields than the one that created a checkpoint rejects it. That happens only when the source changes the hart state, together with a new hart state format version.
+- **Recordings have no version field.** Their files are identified by magic numbers only.
+- **Big-endian hosts aren't supported** ([Portability](#portability)).
 
 **Not saved in a checkpoint:**
 - accelerator (RoCC) state;
@@ -501,12 +542,14 @@ Errors end the run with `terminate called after throwing an instance of 'std::ru
 |---|---|
 | `fail to load pre-recorded FESVR device traffic: cannot open target spec information.` | Wrong `+dev-traffic-replay` path, or an old recording whose spec file is named `target_spec`. |
 | `the device traffic recording <dir> has no boot.elf …` | A recording made before the boot ELF was saved. Copy the ELF it was recorded with into `<dir>` as `boot.elf`; the message gives the SHA-256 it must have. |
-| `malformed device traffic … file: bad magic number` | Not a recording file, or a compressed recording read by an autotools (uncompressed) build. |
+| `malformed device traffic … file: bad magic number` | Not a recording file. |
 | `malformed device traffic checksum file: cannot read the sha256 of the recording` | The recording was never finalized; see the `failed to write` row above. |
 | `incompatible FESVR device traffic recording: … expects target to have <X>MB memory …` / `… HART(s) …` / `… load an ELF with SHA256 …` | Different `-m` or `-p` from the recording run, or a `boot.elf` that isn't the ELF the recording was made with. |
 | `Cannot load the checkpoint file … bad magic number.` / `… created for system with …` | Not a checkpoint, or a different hart count or memory size. |
+| `Cannot load the checkpoint file … because it is in checkpoint format version <n>, but this build reads version <m>.` | The checkpoint was created by a spike with a different checkpoint format. Create it again from its recording with this build. |
+| `Cannot load the checkpoint file … because the full state of HART <i> is not usable: …` | The hart state in the file is corrupt, or in a format this build doesn't read. |
 | `Cannot use the checkpoint file … requires HART <i> to load a device traffic recording with SHA256 …` | The checkpoint belongs to a different recording. |
-| `Error happened while loading the full state of HART <i>: … The state was probably dumped by a different build.` | The checkpoint comes from a spike build with a different `state_t`. |
+| `Error happened while loading the full state of HART <i>: it has no entry for …` / `… an entry for …, which this simulator doesn't have` / `… more than one entry for …` | The checkpoint comes from a spike whose hart state has different fields, or is corrupt. |
 | `Failed to load the checkpoint file … cannot seek to the <n>th command …` | The recording has fewer commands than the checkpoint expects (for example, a truncated recording). |
 | `The compressed chunk supplier stopped providing data …` / `… has extra data after the compressed stream is ended.` / `zlib::inflate failed …` | The checkpoint file is truncated, has trailing data, or is corrupt. |
 
@@ -520,7 +563,7 @@ Errors end the run with `terminate called after throwing an instance of 'std::ru
 | `malformed device traffic input: …` (CRC32, unexpected EOF, early termination) | The recording files are damaged. |
 
 **When a replay diverges, look for:**
-- a different spike build;
+- a spike built from different source;
 - different `-m`/`-p`;
 - a recording made with asynchronous devices (see [Determinism](#determinism)).
 
@@ -537,10 +580,13 @@ Errors end the run with `terminate called after throwing an instance of 'std::ru
 | Target memory tap | `riscv-fesvr/fesvr/memif_tap.{h,cc}` |
 | Main/mirror FESVR | `riscv-fesvr/fesvr/device_traffic_bypass.{h,cc}` |
 | Checkpoint file and description file | `riscv-fesvr/fesvr/checkpoint_format.h`, `riscv-fesvr/fesvr/ckpt_desc_reader.{h,cc}` |
+| Recording file format | `riscv-fesvr/fesvr/device_traffic_format.h` |
+| Hart state format, little-endian encoding | `riscv-fesvr/fesvr/hart_state_format.h`, `riscv-fesvr/fesvr/little_endian.h`; spike's side: `riscv/hart_state_codec.{h,cc}` |
+| Checkpoint digest | `scripts/checkpoint-digest.py` |
 | Execution controller (host side), register map | `riscv-fesvr/fesvr/hart_execution_controller.{h,cc}`, `riscv-fesvr/fesvr/hart_execution_reg.h` |
 | HTIF packet format and commands | `riscv-fesvr/fesvr/packet.h` |
 | CRC32, SHA-256, gzip streams with seek | `riscv-fesvr/fesvr/checksum.{h,cc}`, `riscv-fesvr/fesvr/crypto_digest.{h,cc}`, `riscv-fesvr/fesvr/gzstream.{h,cc}` |
 | spike's HTIF handlers (state, memory dump, execution control) | `riscv/htif.cc` |
 | Memory dump compression | `riscv/stream_compression.{h,cc}` |
-| Execution controller (spike side), freeze and count-down | `riscv/processor_execution_controller.h`, `riscv/execute_insn_hook.h` |
+| Execution controller (spike side), freeze and count-down | `riscv/processor_execution_controller.h`, `riscv/processor.cc` |
 | Blocking system call wait, step loop, counter CSRs | `riscv/processor.cc` |

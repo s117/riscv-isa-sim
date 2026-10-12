@@ -104,7 +104,9 @@ Checkpoints and Device Traffic Replay
 The FESVR can record the device traffic (proxied system calls) of a run,
 replay it later without the original environment, and create and load
 checkpoints on top of a replay. A recording keeps a copy of the boot ELF
-(pk), so a replay takes no target program or arguments:
+(pk), so a replay takes no target program or arguments. Recordings and
+checkpoints are portable: they can be made on one host (e.g. x86-64 Linux)
+and replayed or loaded on another (e.g. ARM64 Linux or an Apple Silicon Mac):
 
     $ mkdir rec
     $ spike -m256 +dev-traffic-record=rec pk hello
