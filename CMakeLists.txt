@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.23)
 
+# The installation prefix is RISCV_INSTALL_PREFIX. It used to be PREFIX, but CMake's compiler detection
+# (CMakeCompilerIdDetection.cmake) sets and unsets a variable of that name, so a cache entry PREFIX (-DPREFIX=...)
+# corrupts it: the compiler ID comes out empty, and so do the flags that depend on it, such as -fPIC and -std=.
+# Take a PREFIX given that way as RISCV_INSTALL_PREFIX, and drop it before project() detects the compiler.
+if (DEFINED CACHE{PREFIX})
+    message(WARNING "PREFIX is deprecated, use RISCV_INSTALL_PREFIX instead (now set to ${PREFIX})")
+    set(RISCV_INSTALL_PREFIX "${PREFIX}" CACHE PATH "Installation prefix of the RISC-V tools" FORCE)
+    unset(PREFIX CACHE)
+endif ()
+
 project(riscv-isa-sim)
 
 set(CMAKE_CXX_STANDARD 11)
@@ -8,12 +18,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-Wall -Wno-unused)
 
 # When calling the configure script of isa-sim and fesvr, this path is used as:
-#     configure --prefix=${PREFIX} ...
-if (NOT DEFINED PREFIX)
-    get_filename_component(PREFIX ${PROJECT_SOURCE_DIR}/../install-linux ABSOLUTE)
-    message(WARNING "PREFIX is not defined, using default: ${PREFIX}")
+#     configure --prefix=${RISCV_INSTALL_PREFIX} ...
+if (NOT DEFINED RISCV_INSTALL_PREFIX)
+    get_filename_component(RISCV_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/../install-linux ABSOLUTE)
+    message(WARNING "RISCV_INSTALL_PREFIX is not defined, using default: ${RISCV_INSTALL_PREFIX}")
 else ()
-    message("PREFIX is set to: ${PREFIX}")
+    message("RISCV_INSTALL_PREFIX is set to: ${RISCV_INSTALL_PREFIX}")
 endif ()
 
 

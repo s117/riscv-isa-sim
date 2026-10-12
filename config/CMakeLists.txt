@@ -35,7 +35,7 @@ get_target_property(lib_fesvr_path fesvr-lib-dir FESVR_LIB_DIR)
 
 set(
         ISA_SIM_AC_CONFIGURE_ARGS
-        --prefix=${PREFIX}
+        --prefix=${RISCV_INSTALL_PREFIX}
         --with-fesvr=${lib_fesvr_path}
 )
 
@@ -68,7 +68,7 @@ add_custom_command(
 )
 
 add_library(ac_config INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir/config.h)
-target_compile_definitions(ac_config INTERFACE PREFIX="${PREFIX}")
+target_compile_definitions(ac_config INTERFACE PREFIX="${RISCV_INSTALL_PREFIX}")
 target_sources(ac_config INTERFACE
         FILE_SET HEADERS
         BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/ac_output_dir
