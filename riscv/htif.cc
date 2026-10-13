@@ -96,6 +96,11 @@ void htif_isasim_t::tick_once()
       for (size_t i = 0; i < hdr.data_size; i++)
         sim->debug_mmu->store_uint64((hdr.addr+i)*HTIF_DATA_ALIGN, buf[i]);
 
+      // The host wrote memory that a hart may have reserved with LR. A reservation holds a virtual address and this
+      // write a physical one, so drop them all. The host writes at the same points in every run (e.g. syscall results).
+      for (size_t i = 0; i < sim->num_cores(); i++)
+        sim->get_core(i)->yield_load_reservation();
+
       packet_header_t ack(HTIF_CMD_ACK, seqno++, 0, 0);
       send(&ack, sizeof(ack));
       break;

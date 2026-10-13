@@ -94,7 +94,7 @@ public:
 
   // The load reservation is dropped whenever the count reaches a multiple of this, standing in for other agents writing
   // memory. Tied to the architectural count, so that every simulator and every run, from a checkpoint or not, drops it
-  // at the same instructions. Also dropped on traps.
+  // at the same instructions. Also dropped on traps, and on memory writes from the host (see htif_isasim_t).
   static const reg_t LR_YIELD_INTERVAL = 8192;
   inline void update_histogram(size_t pc)
   {

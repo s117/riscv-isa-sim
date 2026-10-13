@@ -213,6 +213,13 @@ Replay works only if the replayed program issues exactly the same commands with 
 - pk enables no interrupts, so timer and host interrupts never redirect execution.
 - A checkpoint freeze retires no instructions.
 
+**SC results don't depend on the run.** Whether a store-conditional succeeds depends on when the hart's load reservation is dropped. spike drops it:
+- on a trap;
+- on any memory write from the host (`HTIF_CMD_WRITE_MEM`, e.g. a system call's result), for every hart;
+- whenever the hart's `count` reaches a multiple of `processor_t::LR_YIELD_INTERVAL` (8192), standing in for other agents writing memory.
+
+All three happen at the same instructions in every run: the count is architectural and restored by checkpoints. So a run from a checkpoint, a continuous run, and another simulator that follows the same rules (721sim) agree on every SC. The reservation itself is part of the hart state; restoring a checkpoint's memory doesn't drop it, and neither does a checkpoint freeze. With several harts, it is also dropped at each hart switch.
+
 **The remaining host input is recorded.** `getrandom` is proxied to the FESVR, which uses a fixed seed. Like everything else, the result is replayed from the recording.
 
 So values a program prints or writes (counters, times, anything derived from them) are identical in the recording run and the replay. On replay they show up as recorded reads, for example the buffer of a `write` call, and pass the byte-for-byte check.
