@@ -148,7 +148,7 @@ FESVR options, parsed in `htif_t::htif_t` (`riscv-fesvr/fesvr/htif.cc`). "Real" 
 - Entries may appear in any order; they are taken in increasing count order.
 - Names must be unique, and so must counts. A malformed line (no `:`, an empty name, a signed or non-numeric count) is an error when the file is read.
 - The run ends right after the last checkpoint.
-- Checkpoints can be created for a single hart only. With a mirror FESVR, create only one checkpoint per run; see [section 7](#7-main-and-mirror-fesvr-721sim).
+- Checkpoints can be created for a single hart only.
 
 
 ## 5. How record & replay works
@@ -319,7 +319,7 @@ With `+load-checkpoint` and `+dev-traffic-replay` (`htif_t::start`, `load_checkp
 - Only the main FESVR creates checkpoints.
 - On `+load-checkpoint`, the mirror restores its hart and memory and resets its command counter. It doesn't verify the recording SHA-256 or seek, because the main FESVR does both.
 - A mirror still needs `+dev-traffic-replay=` to accept checkpoint options, although it doesn't read the path.
-- **Create only one checkpoint per run while a mirror exists.** A checkpoint freezes the leading hart while the FESVR transfers its state and memory, and spike keeps ticking the HTIF during that time. The ticks after the checkpoint then no longer fall at the same instruction counts as before. According to the design note in `setup_trap_for_next_checkpoint()`, more than one checkpoint therefore makes 721sim's checker fail. The rule is not enforced in code.
+- **Any number of checkpoints per run.** The main FESVR freezes the leading hart at each count while it saves the hart's state and memory. The HTIF ticks during the freeze don't change what the mirror sees: it replays the main FESVR's commands in order, and a hart waits for every syscall's response. 721sim creates several checkpoints per run with its checker on, and they match spike's byte for byte.
 
 
 ## 8. HTIF protocol additions
@@ -515,7 +515,6 @@ None of these matters for pk programs: pk uses no accelerator, and spike holds t
 - **No `+signature` output after `+load-checkpoint`,** since no ELF is loaded.
 - **A truncated recording can't resume past its end.** If the recording was stopped by `-e`, a checkpoint taken after its last command can't be loaded, because the recording has no command at that position to seek to.
 - **Asynchronous device responses can't be recorded.** These include console input; see [Determinism](#determinism).
-- **A mirror FESVR allows one checkpoint per run.** This rule is not enforced; see [section 7](#7-main-and-mirror-fesvr-721sim).
 
 
 ## 11. Troubleshooting
