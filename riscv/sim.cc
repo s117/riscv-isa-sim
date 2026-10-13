@@ -109,7 +109,10 @@ void sim_t::step(size_t n)
     if (current_step == INTERLEAVE)
     {
       current_step = 0;
-      procs[current_proc]->yield_load_reservation();
+      // Switching to another hart, which may write the reserved memory. A single hart drops its reservation by count
+      // instead (see processor_t::LR_YIELD_INTERVAL), so that it doesn't depend on where the run started.
+      if (procs.size() > 1)
+        procs[current_proc]->yield_load_reservation();
       if (++current_proc == procs.size())
         current_proc = 0;
 
@@ -141,7 +144,9 @@ bool sim_t::run(size_t n)
 		if (current_step == INTERLEAVE)
 		{
 			current_step = 0;//current_step % INTERLEAVE;
-			procs[current_proc]->yield_load_reservation();
+			// as in step()
+			if (procs.size() > 1)
+				procs[current_proc]->yield_load_reservation();
 			if (++current_proc == procs.size()) {
 				current_proc = 0;
 			}

@@ -91,6 +91,11 @@ public:
   extension_t* get_extension() { return ext; }
   uint32_t get_id() { return id; }
   void yield_load_reservation() { state.load_reservation = (reg_t)-1; }
+
+  // The load reservation is dropped whenever the count reaches a multiple of this, standing in for other agents writing
+  // memory. Tied to the architectural count, so that every simulator and every run, from a checkpoint or not, drops it
+  // at the same instructions. Also dropped on traps.
+  static const reg_t LR_YIELD_INTERVAL = 8192;
   inline void update_histogram(size_t pc)
   {
 #ifdef RISCV_ENABLE_HISTOGRAM

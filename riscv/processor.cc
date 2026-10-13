@@ -238,10 +238,14 @@ size_t processor_t::step(const size_t n)
 
   // End a batch at pc, once new_instret instructions in total have retired in this step.
   auto commit = [this, &instret](reg_t pc, size_t new_instret) {
+    const reg_t count_before = state.count;
     update_timer(&state, new_instret - instret);
     state.pc = pc;
     retired += new_instret - instret;
     instret = new_instret;
+    // A batch ends where the count reaches a multiple of LR_YIELD_INTERVAL, drop the load reservation there
+    if (count_before / LR_YIELD_INTERVAL != state.count / LR_YIELD_INTERVAL)
+      yield_load_reservation();
   };
 
   // Traps taken in a row without retiring any instruction, and the instret at the last one.
@@ -265,6 +269,11 @@ size_t processor_t::step(const size_t n)
     // End the batch where the count down runs out, it triggers at the next boundary.
     if (unlikely(cnt_down_max_retire < batch_instret_max - instret))
       batch_instret_max = instret + cnt_down_max_retire;
+    // End the batch where the count reaches the next multiple of LR_YIELD_INTERVAL, see commit(). (A write to the count
+    // CSR in the batch moves the yield to the end of the batch; pk never writes it.)
+    const size_t until_lr_yield = LR_YIELD_INTERVAL - state.count % LR_YIELD_INTERVAL;
+    if (until_lr_yield < batch_instret_max - instret)
+      batch_instret_max = instret + until_lr_yield;
 
     // Instruction budget for the current batch.
     auto batch_instret_budget = batch_instret_max - instret;
