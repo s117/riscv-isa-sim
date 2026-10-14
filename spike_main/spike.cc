@@ -6,6 +6,7 @@
 #include "extension.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
+#include <fesvr/fesvr_build_info.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -15,6 +16,17 @@
 
 #define NO_STOP UINT64_MAX
 
+// Defined in spike_build_info.cc, generated at build time by scripts/stamp-build-info.sh
+void spike_print_build_info(FILE *fp);
+
+// Print the build information of spike and of the libfesvr it runs with, for data provenance
+static void version()
+{
+  spike_print_build_info(stdout);
+  fesvr_print_build_info(stdout);
+  exit(0);
+}
+
 static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
@@ -22,6 +34,7 @@ static void help()
   fprintf(stderr, "             (replay: the boot ELF and the program arguments come from the recording)\n");
   fprintf(stderr, "Host Options:\n");
   fprintf(stderr, "  -h                 Print this help message\n");
+  fprintf(stderr, "  --version          Print the build information (git version...) of spike and its FESVR\n");
   fprintf(stderr, "  -p<n>              Simulate <n> processors\n");
   fprintf(stderr, "  -m<n>              Provide <n> MB of target memory\n");
   fprintf(stderr, "  -d                 Interactive debug mode\n");
@@ -73,6 +86,7 @@ int main(int argc, char** argv)
   option_parser_t parser;
   parser.help(&help);
   parser.option('h', 0, 0, [&](const char* s){help();});
+  parser.option(0, "version", 0, [&](const char* s){version();});
   parser.option('d', 0, 0, [&](const char* s){debug = true;});
   parser.option('g', 0, 0, [&](const char* s){histogram = true;});
   parser.option('s', 0, 1, [&](const char* s){simpoint = true; simpoint_interval = atol(s);});

@@ -26,6 +26,11 @@ install path, and that the riscv-fesvr package is installed there.
     $ make
     $ [sudo] make install
 
+`spike --version` prints how the build was made, for data provenance: the
+git repository, version and commit of spike and of the libfesvr it runs
+with, and the build host, target, compiler, date and build type. Both the
+autotools and the CMake build record them at every build.
+
 Compiling and Running a Simple C Program
 -------------------------------------------
 
