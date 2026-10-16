@@ -9,6 +9,7 @@
 #include <fstream>
 #include "processor.h"
 #include "mmu.h"
+#include <fesvr/htif.h>
 
 // ifprintf macro definition.
 #define ifprintf(condition, file, args...){	\
@@ -31,7 +32,8 @@ public:
   int run();
   bool run(size_t n);
   bool running();
-  void stop();
+  // End the run for the given reason, through the FESVR (see htif_t::request_stop()), with the harts between steps
+  void stop(htif_t::finish_reason_t reason);
   void set_debug(bool value);
   void set_histogram(bool value);
   void set_procs_debug(bool value);

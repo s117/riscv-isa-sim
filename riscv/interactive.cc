@@ -112,6 +112,7 @@ void sim_t::interactive_run(const std::string& cmd, const std::vector<std::strin
 
 void sim_t::interactive_quit(const std::string& cmd, const std::vector<std::string>& args)
 {
+  stop(htif_t::finish_reason_t::debug_quit);
   exit(0);
 }
 

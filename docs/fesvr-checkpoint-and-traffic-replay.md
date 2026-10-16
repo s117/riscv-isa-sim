@@ -82,7 +82,7 @@ spike -m256 \
 - Use the same `-m` as the recording run; the replay checks it.
 - Don't pass a target program or arguments: replay mode rejects them. The boot ELF is loaded from the recording's `boot.elf`, and its SHA-256 is checked against the recording. pk gets the program and its arguments through replayed system calls. `+chroot`, `+target-cwd` and the other real-device options are ignored in replay mode.
 - A replay prints nothing and writes no files: system calls aren't executed again. Console output and output files exist only from the recording run.
-- To confirm the replay reproduced the run, compare the `instret` in the two `+final-state-dump` files. They must be equal.
+- To confirm the replay reproduced the run, compare the two `+final-state-dump` files: both must say `target_exit`, with the same `exit_code` and `instret`.
 
 ### Create checkpoints
 
@@ -122,7 +122,7 @@ FESVR options, parsed in `htif_t::htif_t` (`riscv-fesvr/fesvr/htif.cc`). "Real" 
 | `+dev-traffic-replay=<dir>` | — | Replay mode: no host devices are created, and commands are answered from the recording in `<dir>`. The boot ELF is loaded from `<dir>/boot.elf`, and target arguments are rejected. The recording is opened and validated at startup. |
 | `+create-checkpoint=<file>` | replay | Create checkpoints as listed in the description file `<file>`, which is parsed at startup. Single hart only. |
 | `+load-checkpoint=<file>` | replay, mirror | Restore checkpoint `<file>` before execution starts. |
-| `+final-state-dump=<file>` | real, replay | At the end, write JSON `{"hart_state": [{"instret": N}, ...]}`. N is the hart's retired-instruction count since the original boot, including the part before a restored checkpoint, up to the `tohost` write of the exit (excluded), whatever the run started from. |
+| `+final-state-dump=<file>` | real, replay | Write JSON saying why the run finished and each hart's retired-instruction count; see [Final state dump](#final-state-dump). |
 | `+signature=<file>` | real, replay | Write the memory between the ELF's `begin_signature` and `end_signature` symbols (torture tests). There is no signature after `+load-checkpoint`, because no ELF is loaded. |
 | `+strace=<file>` | real only | Write a trace of the proxied system calls. |
 | `+std-dump=<base>` | real only | Also copy the target's stdout and stderr to `<base>.stdout` and `<base>.stderr`. |
@@ -488,6 +488,32 @@ Entry ids:
 | `0x2001` | the load reservation address, all ones when none |
 
 spike writes the 80 entries above (1,296 bytes) and requires exactly that set on load, in any order. Adding a field to the state takes a new id and a new format version.
+
+### Final state dump
+
+`+final-state-dump=<file>` writes JSON (`htif_t::dump_final_state()`):
+
+```json
+{
+  "finish_reason": "target_exit",
+  "exit_code": 0,
+  "hart_state": [ { "instret": 3185532242 } ]
+}
+```
+
+`instret` is the hart's retired-instruction count since the original boot, including the part before a restored checkpoint. It is taken where the run finished, which `finish_reason` says:
+
+| `finish_reason` | The run finished because | Extra key | `instret` |
+|---|---|---|---|
+| `target_exit` | the program exited (or a test wrote its result to `tohost`), in a real run or a replay | `exit_code` | before the exit's `tohost` write, whatever the run started from |
+| `checkpoints_created` | the last checkpoint of `+create-checkpoint` was created | | at the last checkpoint |
+| `instret_limit` | the simulator reached its instruction limit (`-e`) | | the start count plus the limit |
+| `debug_quit` | the user quit spike's interactive debug mode (`q`) | | where it quit |
+| `interrupted` | SIGTERM (or SIGINT, when the simulator doesn't take it) | `signal` | where the FESVR stopped |
+| `error` | the FESVR failed, e.g. a checkpoint that doesn't fit the recording | `error`: the message | none, no `hart_state` |
+| `unfinished` | the process died otherwise: a crash, an assert, a second signal, `kill -9` | | none, no `hart_state` |
+
+The file is written with `unfinished` as soon as the FESVR is configured, and replaced when the run finishes. So it is never empty, and a file left by an earlier run is never mistaken for this run's. spike's SIGINT (Ctrl-C) opens its interactive debug mode instead of ending the run.
 
 
 ## 10. Limitations

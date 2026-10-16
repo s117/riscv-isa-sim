@@ -155,6 +155,9 @@ bool sim_t::run(size_t n)
 			htif_return = htif->tick();
 		}
 	}
+  // Reached the instruction limit before the FESVR ended the run: end it, so that it dumps the final state
+  if (htif_return)
+    stop(htif_t::finish_reason_t::instret_limit);
   return htif_return;
 }
 
@@ -166,9 +169,9 @@ bool sim_t::running()
   return false;
 }
 
-void sim_t::stop()
+void sim_t::stop(htif_t::finish_reason_t reason)
 {
-  procs[0]->state.tohost = 1;
+  htif->request_stop(reason);
   while (htif->tick())
     ;
 }
