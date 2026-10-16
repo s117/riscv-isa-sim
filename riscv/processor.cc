@@ -380,7 +380,8 @@ size_t processor_t::step(const size_t n)
     catch (host_stopped_t &s)
     {
       // The host has stopped the simulation (and may have reset the core) while the core was waiting on it.
-      // Leave the core state as the host left it, and report the instructions retired so far.
+      // Leave the core state as the host left it, and report the instructions retired so far. (The wait serialized
+      // first, see set_pcr(), so the instruction waiting is normally the first of its batch.)
       return batch_instret_max - batch_instret_budget;
     }
   }
@@ -512,6 +513,10 @@ void processor_t::set_pcr(int which, reg_t val)
       state.pcr_k1 = val;
       break;
     case CSR_TOHOST:
+      // The host reads the state while it serves a command (e.g. the count, for the final state dump, while the core
+      // waits on a system call below), and a batch only commits its instructions at its end: end the batch first, so
+      // that the state is precise then.
+      serialize();
       if (state.tohost == 0)
       {
         #define GET_COMMAND_DEV_ID(tohost_val) ((uint8_t)((tohost_val) >> 56))

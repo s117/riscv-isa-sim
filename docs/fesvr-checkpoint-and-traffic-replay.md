@@ -122,7 +122,7 @@ FESVR options, parsed in `htif_t::htif_t` (`riscv-fesvr/fesvr/htif.cc`). "Real" 
 | `+dev-traffic-replay=<dir>` | — | Replay mode: no host devices are created, and commands are answered from the recording in `<dir>`. The boot ELF is loaded from `<dir>/boot.elf`, and target arguments are rejected. The recording is opened and validated at startup. |
 | `+create-checkpoint=<file>` | replay | Create checkpoints as listed in the description file `<file>`, which is parsed at startup. Single hart only. |
 | `+load-checkpoint=<file>` | replay, mirror | Restore checkpoint `<file>` before execution starts. |
-| `+final-state-dump=<file>` | real, replay | At the end, write JSON `{"hart_state": [{"instret": N}, ...]}`. N is the hart's retired-instruction count since the original boot, including the part before a restored checkpoint. |
+| `+final-state-dump=<file>` | real, replay | At the end, write JSON `{"hart_state": [{"instret": N}, ...]}`. N is the hart's retired-instruction count since the original boot, including the part before a restored checkpoint, up to the `tohost` write of the exit (excluded), whatever the run started from. |
 | `+signature=<file>` | real, replay | Write the memory between the ELF's `begin_signature` and `end_signature` symbols (torture tests). There is no signature after `+load-checkpoint`, because no ELF is loaded. |
 | `+strace=<file>` | real only | Write a trace of the proxied system calls. |
 | `+std-dump=<base>` | real only | Also copy the target's stdout and stderr to `<base>.stdout` and `<base>.stderr`. |
