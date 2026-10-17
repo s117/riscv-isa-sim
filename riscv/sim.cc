@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cassert>
 #include <signal.h>
+#include <unistd.h>
 #include <iostream>
 #include <fstream>
 
@@ -16,8 +17,10 @@ bool logging_on             = false;
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
 {
+  // A second Ctrl-C forces the quit, of a spike that doesn't respond. _exit() is safe in a signal handler, exit() isn't;
+  // the final state dump stays "unfinished".
   if (ctrlc_pressed)
-    exit(-1);
+    _exit(-1);
   ctrlc_pressed = true;
   signal(sig, &handle_signal);
 }

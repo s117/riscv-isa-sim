@@ -509,11 +509,13 @@ spike writes the 80 entries above (1,296 bytes) and requires exactly that set on
 | `checkpoints_created` | the last checkpoint of `+create-checkpoint` was created | | at the last checkpoint |
 | `instret_limit` | the simulator reached its instruction limit (`-e`) | | the start count plus the limit |
 | `debug_quit` | the user quit spike's interactive debug mode (`q`) | | where it quit |
-| `interrupted` | SIGTERM (or SIGINT, when the simulator doesn't take it) | `signal` | where the FESVR stopped |
+| `interrupted` | SIGTERM (or SIGINT, when the simulator doesn't take it); a repeat of the signal is ignored | `signal` | where the FESVR stopped |
 | `error` | the FESVR failed, e.g. a checkpoint that doesn't fit the recording | `error`: the message | none, no `hart_state` |
-| `unfinished` | the process died otherwise: a crash, an assert, a second signal, `kill -9` | | none, no `hart_state` |
+| `unfinished` | the process died otherwise: a crash, an assert, a forced quit (a second Ctrl-C in spike), `kill -9` | | none, no `hart_state` |
 
-The file is written with `unfinished` as soon as the FESVR is configured, and replaced when the run finishes. So it is never empty, and a file left by an earlier run is never mistaken for this run's. spike's SIGINT (Ctrl-C) opens its interactive debug mode instead of ending the run.
+The file is written with `unfinished` as soon as the FESVR is configured, and replaced when the run finishes. So it is never empty, and a file left by an earlier run is never mistaken for this run's. Each version is written whole to `<file>.tmp.<pid>`, then renamed over `<file>`: whenever the process dies, the file holds one complete JSON object.
+
+A repeated SIGTERM is ignored while the run stops, so stopping a run takes one signal, or several: under make, a batch scheduler's time limit or `kill -- -<pgid>`, spike gets SIGTERM twice (the process group's, and the copy make passes on). SIGKILL ends spike at once. spike's SIGINT (Ctrl-C) opens its interactive debug mode instead of ending the run, and a second Ctrl-C forces the quit.
 
 
 ## 10. Limitations
