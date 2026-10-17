@@ -38,7 +38,7 @@ void processor_t::pre_execute_insn(reg_t pc, insn_t insn)
 #endif
 }
 
-void processor_t::post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapped)
+void processor_t::post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapped, bool ends_bb)
 {
 #ifdef RISCV_ENABLE_DBG_TRACE
   dbg_tracer->increment_instret();
@@ -49,8 +49,7 @@ void processor_t::post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapp
   if (simpoint_enabled)
   {
     ++num_bb_inst;
-    reg_t opcode = insn.opcode();
-    if (opcode == OP_JAL || opcode == OP_JALR || opcode == OP_BRANCH)
+    if (ends_bb)
     {
   #ifdef RISCV_ENABLE_PC_FREQ_VEC
       if (unlikely(bbt->bb_tracker((uint64_t) pc, num_bb_inst)))

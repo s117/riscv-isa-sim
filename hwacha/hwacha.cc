@@ -81,7 +81,7 @@ static reg_t custom(processor_t* p, insn_t insn, reg_t pc)
   if (!matched)
     h->take_exception(HWACHA_CAUSE_ILLEGAL_INSTRUCTION, uint32_t(insn.bits()));
 
-  p->post_execute_insn(pc, insn, npc, false);
+  p->post_execute_insn(pc, insn, npc, false, processor_t::ends_basic_block(insn.bits()));
   return npc;
 }
 

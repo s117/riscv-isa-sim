@@ -18,7 +18,7 @@
     if (u.r.xd) \
       WRITE_RD(xd); \
     reg_t npc = pc+4; \
-    p->post_execute_insn(pc, insn, npc, false); \
+    p->post_execute_insn(pc, insn, npc, false, processor_t::ends_basic_block(insn.bits())); \
     return npc; \
   } \
   \

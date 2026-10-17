@@ -108,7 +108,14 @@ public:
   void register_extension(extension_t*);
 
   inline void pre_execute_insn(reg_t pc, insn_t insn) __attribute__((always_inline));
-  inline void post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapped) __attribute__((always_inline));
+  // ends_bb: the instruction ends a basic block (for SimPoint), see ends_basic_block()
+  inline void post_execute_insn(reg_t pc, insn_t insn, reg_t npc, bool trapped, bool ends_bb) __attribute__((always_inline));
+  // An instruction of these bits ends a basic block: a branch or a jump. Constant for the generated instructions,
+  // which pass their MATCH_* value.
+  static constexpr bool ends_basic_block(reg_t bits)
+  {
+    return (bits & 0x7f) == OP_BRANCH || (bits & 0x7f) == OP_JAL || (bits & 0x7f) == OP_JALR;
+  }
 
 #ifdef RISCV_ENABLE_SIMPOINT
   bool simpoint_enabled;

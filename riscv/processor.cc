@@ -348,7 +348,7 @@ size_t processor_t::step(const size_t n)
       if (is_scall || dynamic_cast<trap_breakpoint *>(&t))
       {
         --batch_instret_budget;
-        post_execute_insn(pc, insn_t(is_scall ? MATCH_SCALL : MATCH_SBREAK), trap_handler, true);
+        post_execute_insn(pc, insn_t(is_scall ? MATCH_SCALL : MATCH_SBREAK), trap_handler, true, false);
       }
 
       commit(trap_handler, batch_instret_max - batch_instret_budget);
