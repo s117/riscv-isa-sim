@@ -6,87 +6,173 @@
 #include "sim.h"
 #include <zlib.h>
 #include <cassert>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <algorithm>
 
 extern bool logging_on;
 
+namespace {
+
+constexpr size_t ZERO_PAGE_SIZE = 4096;
+constexpr size_t ZERO_BLOCK_LARGE = size_t(1) << 20; // 1 MiB
+constexpr int DATA_LEVEL = 6;
+
+// Raw deflate blocks, byte-aligned and not final, that decode to n zero bytes without referring to earlier output.
+// A fresh deflater starts with a literal zero, and Z_FULL_FLUSH ends its output on a byte boundary.
+std::string make_zero_block(size_t n)
+{
+  std::vector<char> zeros(n, 0);
+  std::vector<char> out(n + 1024);
+  z_stream zs;
+  memset(&zs, 0, sizeof(zs));
+  if (deflateInit2(&zs, Z_BEST_COMPRESSION, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK)
+    throw std::runtime_error("zlib::deflateInit2 failed");
+  zs.next_in = (Bytef *) zeros.data();
+  zs.avail_in = n;
+  zs.next_out = (Bytef *) out.data();
+  zs.avail_out = out.size();
+  int zret = deflate(&zs, Z_FULL_FLUSH);
+  const size_t produced = out.size() - zs.avail_out;
+  deflateEnd(&zs);
+  if (zret != Z_OK || zs.avail_in != 0 || zs.avail_out == 0)
+    throw std::runtime_error("zlib::deflate failed to encode a zero block");
+  return std::string(out.data(), produced);
+}
+
+const std::string &zero_block(size_t n)
+{
+  static const std::string large = make_zero_block(ZERO_BLOCK_LARGE);
+  static const std::string page = make_zero_block(ZERO_PAGE_SIZE);
+  assert(n == ZERO_BLOCK_LARGE || n == ZERO_PAGE_SIZE);
+  return n == ZERO_BLOCK_LARGE ? large : page;
+}
+
+// The Adler-32 of a run of n zero bytes
+uLong adler32_of_zeros(size_t n)
+{
+  return (uLong(n % 65521) << 16) | 1;
+}
+
+}
+
 void stream_compression_t::compress_region(const void *src, size_t len, size_t out_chunk_sz, const std::function<void(const char *data, size_t len)> &on_chunk_compressed_cb)
 {
-  constexpr size_t DEFLATE_CHUNK_SIZE = size_t(16) << 20; // 16 MB
-  static_assert(DEFLATE_CHUNK_SIZE < (uint64_t(1) << 32), "DEFLATE_CHUNK_SIZE must be less than 4GB.");
-
-  assert(DEFLATE_CHUNK_SIZE >= (2 * out_chunk_sz));
+  // The stream is a standard zlib stream, which any inflater reads, built from:
+  // - the data pages, deflated at level DATA_LEVEL by a raw deflater flushed with Z_FULL_FLUSH after each run, which
+  //   byte-aligns its output and forgets the data before, so it never refers back across the zero pages it didn't see;
+  // - the runs of zero pages, as precomputed blocks (see make_zero_block()): most of a memory image is zeros, which
+  //   deflate itself would scan byte by byte;
+  // - the zlib header, a final empty block, and the Adler-32 of the whole region.
+  constexpr size_t DEFLATE_CHUNK_SIZE = size_t(16) << 20; // 16 MB, the most fed to deflate (or adler32) at once
   assert(out_chunk_sz != 0);
 
-  int zret;
-  std::vector<char> zout_buf(DEFLATE_CHUNK_SIZE);
+  const char *const base = (const char *) src;
+  static const char zero_page[ZERO_PAGE_SIZE] = {0};
+
+  // Send the output in packets of exactly out_chunk_sz bytes, but the last
+  std::vector<char> pending;
+  pending.reserve(out_chunk_sz);
+  auto emit = [&](const char *data, size_t n) {
+    while (n)
+    {
+      const size_t k = std::min(n, out_chunk_sz - pending.size());
+      pending.insert(pending.end(), data, data + k);
+      data += k;
+      n -= k;
+      if (pending.size() == out_chunk_sz)
+      {
+        on_chunk_compressed_cb(pending.data(), pending.size());
+        pending.clear();
+      }
+    }
+  };
 
   z_stream zs;
   memset(&zs, 0, sizeof(zs));
-  if ((zret = deflateInit(&zs, Z_BEST_COMPRESSION)) != Z_OK)
+  int zret;
+  if ((zret = deflateInit2(&zs, DATA_LEVEL, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY)) != Z_OK)
+    throw std::runtime_error("zlib::deflateInit2 failed with return code " + std::to_string(zret));
+  // Free the deflater however this returns, also when the callback throws
+  struct deflate_end_t
   {
-    deflateEnd(&zs);
-    throw std::runtime_error("zlib::deflateInit failed with return code " + std::to_string(zret));
-  }
-
-  size_t input_consumed = 0;
-  size_t output_remain = 0;
-  size_t assigned_in;
-  size_t progress_mark = 0;
-
-  // Chunk-by-chunk stream compression.
-  // Note that zs.avail_in is u32 type cannot handle chunk size larger than 1^32-1.
-  do {
-    zs.next_in = (z_const Bytef *) src + input_consumed;
-    assigned_in = std::min(len - input_consumed, DEFLATE_CHUNK_SIZE);
-    zs.avail_in = assigned_in;
-
-    int zflush = Z_NO_FLUSH;
-    if (zs.avail_in == 0)
-      zflush = Z_FINISH;
-
-    // Compress and send the current input chunk
-    do {
-      zs.next_out = (Bytef *) zout_buf.data() + output_remain;
-      zs.avail_out = zout_buf.size() - output_remain;
-      zret = deflate(&zs, zflush);
-
-      if (zret != Z_OK && zret != Z_BUF_ERROR && zret != Z_STREAM_END)
-      {
-        deflateEnd(&zs);
-        throw std::runtime_error("zlib::deflate failed with return code " + std::to_string(zret));
-      }
-
-      size_t zout_accumulated = zout_buf.size() - zs.avail_out;
-
-      size_t send_offset = 0;
-      while (send_offset + out_chunk_sz <= zout_accumulated)
-      {
-        // prioritize sending packets in exact `out_chunk_sz` bytes
-        on_chunk_compressed_cb(zout_buf.data() + send_offset, out_chunk_sz);
-        send_offset += out_chunk_sz;
-      }
-      output_remain = zout_accumulated - send_offset;
-      assert(output_remain < out_chunk_sz);
-      if (output_remain)
-        std::move(zout_buf.begin() + send_offset, zout_buf.begin() + zout_accumulated, zout_buf.begin());
-    } while (zs.avail_out == 0 && zret != Z_STREAM_END); // If deflate returns with avail_out == 0, this function must be called again with the same value of the flush parameter and more output space (updated avail_out), until the flush is complete (deflate returns with non-zero avail_out).
-
-    input_consumed += assigned_in - zs.avail_in;
-
-    if (unlikely(logging_on && (progress_mark << 20) <= input_consumed))
+    z_stream *zs;
+    ~deflate_end_t() { deflateEnd(zs); }
+  } deflate_end{&zs};
+  std::vector<char> zout_buf(size_t(256) << 10);
+  // Feed the deflater n bytes (none for Z_FINISH) and emit what it produces, until it has consumed them and flushed
+  auto deflate_run = [&](const char *data, size_t n, int zflush) {
+    do
     {
-      fprintf(stderr, "Compressed %" PRIu64 "MB memory.\n", uint64_t(input_consumed) >> 20);
+      const size_t assigned_in = std::min(n, DEFLATE_CHUNK_SIZE);
+      const bool last_piece = assigned_in == n;
+      zs.next_in = (z_const Bytef *) data;
+      zs.avail_in = assigned_in;
+      do
+      {
+        zs.next_out = (Bytef *) zout_buf.data();
+        zs.avail_out = zout_buf.size();
+        zret = deflate(&zs, last_piece ? zflush : Z_NO_FLUSH);
+        if (zret != Z_OK && zret != Z_BUF_ERROR && zret != Z_STREAM_END)
+          throw std::runtime_error("zlib::deflate failed with return code " + std::to_string(zret));
+        emit(zout_buf.data(), zout_buf.size() - zs.avail_out);
+      } while (zs.avail_out == 0 && zret != Z_STREAM_END); // more output pending for the same flush
+      assert(zs.avail_in == 0);
+      data += assigned_in;
+      n -= assigned_in;
+    } while (n);
+  };
+
+  static const char zlib_header[2] = {0x78, char(0x9c)}; // deflate, 32K window, default level
+  emit(zlib_header, sizeof(zlib_header));
+
+  uLong adler = adler32(0, Z_NULL, 0);
+  size_t progress_mark = 0;
+  size_t pos = 0;
+  while (pos < len)
+  {
+    // A run of whole zero pages
+    size_t end = pos;
+    while (end + ZERO_PAGE_SIZE <= len && memcmp(base + end, zero_page, ZERO_PAGE_SIZE) == 0)
+      end += ZERO_PAGE_SIZE;
+    if (end > pos)
+    {
+      const size_t n = end - pos;
+      for (size_t i = 0; i < n / ZERO_BLOCK_LARGE; i++)
+        emit(zero_block(ZERO_BLOCK_LARGE).data(), zero_block(ZERO_BLOCK_LARGE).size());
+      for (size_t i = 0; i < n % ZERO_BLOCK_LARGE / ZERO_PAGE_SIZE; i++)
+        emit(zero_block(ZERO_PAGE_SIZE).data(), zero_block(ZERO_PAGE_SIZE).size());
+      adler = adler32_combine(adler, adler32_of_zeros(n), n);
+      pos = end;
+    }
+
+    // A run of data pages (a partial last page is data too)
+    while (end < len && (end + ZERO_PAGE_SIZE > len || memcmp(base + end, zero_page, ZERO_PAGE_SIZE) != 0))
+      end = std::min(end + ZERO_PAGE_SIZE, len);
+    if (end > pos)
+    {
+      for (size_t p = pos; p < end; p += DEFLATE_CHUNK_SIZE)
+        adler = adler32(adler, (const Bytef *) base + p, std::min(end - p, DEFLATE_CHUNK_SIZE));
+      deflate_run(base + pos, end - pos, Z_FULL_FLUSH);
+      pos = end;
+    }
+
+    if (unlikely(logging_on && (progress_mark << 20) <= pos))
+    {
+      fprintf(stderr, "Compressed %" PRIu64 "MB memory.\n", uint64_t(pos) >> 20);
       progress_mark += 1024;
     }
-  } while (zret != Z_STREAM_END);
+  }
 
-  assert(input_consumed == len);
-  if (output_remain) // the compressed stream is finished, send whatever left in the buffer
-    on_chunk_compressed_cb(zout_buf.data(), output_remain);
-
-  zret = deflateEnd(&zs);
-  if (zret != Z_OK)
-    throw std::runtime_error("zlib::deflateEnd failed with return code " + std::to_string(zret));
+  // The final (empty) block, then the trailer
+  deflate_run(nullptr, 0, Z_FINISH);
+  if (zret != Z_STREAM_END)
+    throw std::runtime_error("zlib::deflate didn't finish the stream, return code " + std::to_string(zret));
+  const char trailer[4] = {char(adler >> 24), char(adler >> 16), char(adler >> 8), char(adler)};
+  emit(trailer, sizeof(trailer));
+  if (!pending.empty())
+    on_chunk_compressed_cb(pending.data(), pending.size());
 }
 
 size_t stream_compression_t::decompress_region(void *dst, size_t dst_limit, const std::function<void(char *&input, size_t &len)> &chunk_supplying_cb)

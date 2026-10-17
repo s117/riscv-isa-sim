@@ -460,7 +460,7 @@ Per-hart record (8236 bytes):
 | 40 | 4 | size of the saved hart state |
 | 44 | 8192 | the hart state ([Hart state](#hart-state)); the rest is zero |
 
-The header is followed by the zlib stream (`deflate`, level 9) of all target memory, running to the end of the file. It decompresses to exactly memory size × 2^20 bytes. A one-hart checkpoint's header is 8284 bytes.
+The header is followed by a zlib stream of all target memory, running to the end of the file. It decompresses to exactly memory size × 2^20 bytes. A one-hart checkpoint's header is 8284 bytes. spike builds the stream itself (`riscv/stream_compression.cc`): runs of zero pages as precomputed deflate blocks, the other pages deflated at level 6. It is a standard zlib stream, which any inflater reads.
 
 **Version.** Any change to this layout bumps the format version, and a loader rejects versions it doesn't know. The hart state has a version of its own, as it is also exchanged with spike over the HTIF.
 
