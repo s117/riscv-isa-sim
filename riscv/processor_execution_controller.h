@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 
 // Thrown when the HART freezes in the middle of a batch, before an instruction executes: it ends the batch, and the HART
 // waits to be defrosted at the next batch boundary, where its state is precise
