@@ -16,7 +16,10 @@
 
 #define NO_STOP UINT64_MAX
 
-// Defined in spike_build_info.cc, generated at build time by scripts/stamp-build-info.sh
+// Defined in spike_build_info.cc, generated at build time by scripts/stamp-build-info.sh: the build information, as
+// {key, label, value} fields, and a function printing it
+extern const char *const spike_build_info_fields[][3];
+extern const size_t spike_build_info_num_fields;
 void spike_print_build_info(FILE *fp);
 
 // Print the build information of spike and of the libfesvr it runs with, for data provenance
@@ -133,6 +136,12 @@ int main(int argc, char** argv)
 #endif
 
   int htif_code = true;
+
+  // spike's part of the provenance of a recording (+dev-traffic-record), before the FESVR starts
+  std::vector<std::pair<std::string, std::string>> build_fields;
+  for (size_t i = 0; i < spike_build_info_num_fields; i++)
+    build_fields.emplace_back(spike_build_info_fields[i][0], spike_build_info_fields[i][2]);
+  s.get_htif()->set_simulator_provenance("spike", build_fields, argc, argv);
 
   // Initialize the processor
   s.boot();

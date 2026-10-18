@@ -408,10 +408,31 @@ To check a port, replay a recording made elsewhere to its end, and compare check
 | `device_traffic_hart<N>.packets` | the command service sequences of hart N |
 | `device_traffic_hart<N>.index` | the offset of each command in `.packets` |
 | `device_traffic_hart<N>.sha256` | the SHA-256 of `.packets`; it identifies the recording |
+| `recording_provenance.json` | how the recording was made, for provenance only: the replay doesn't read it (see below) |
 
-The on-disk structures are defined in `riscv-fesvr/fesvr/device_traffic_format.h`. Recordings made before the spec file was renamed have `target_spec` instead of `target_spec.data`. Recordings made before the boot ELF was saved have no `boot.elf`: copy the boot ELF they were recorded with into the folder as `boot.elf` (the replay reports the SHA-256 it must have). A recording of a run that loaded no ELF has no `boot.elf` and an all-zero ELF SHA-256 in `target_spec.data`. `target_spec.data` and `boot.elf` are never compressed.
+The on-disk structures are defined in `riscv-fesvr/fesvr/device_traffic_format.h`. Recordings made before the spec file was renamed have `target_spec` instead of `target_spec.data`. Recordings made before the boot ELF was saved have no `boot.elf`: copy the boot ELF they were recorded with into the folder as `boot.elf` (the replay reports the SHA-256 it must have). A recording of a run that loaded no ELF has no `boot.elf` and an all-zero ELF SHA-256 in `target_spec.data`. Recordings made before the provenance was recorded have no `recording_provenance.json`. `target_spec.data` and `boot.elf` are never compressed.
 
 **Compression.** The `.packets`, `.index` and `.sha256` files are each a gzip stream, in both the CMake and the autotools build. All offsets below refer to the uncompressed bytes. For debugging, a build with `FESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT` set to 0 writes them uncompressed: the CMake option `-DFESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT=OFF`, or `-DFESVR_TRAFFIC_RECORD_COMPRESSED_OUTPUT=0` in the compiler flags. Every build reads both kinds, because zlib passes plain files through.
+
+**`recording_provenance.json`** says how the recording was made (`device_traffic_recorder_t`):
+
+```json
+{
+  "started": "2026-10-17T18:57:50-0400",
+  "finished": "2026-10-17T18:59:12-0400",
+  "time_zone": "EDT",
+  "uname": {"sysname": "Linux", "nodename": "...", "release": "...", "version": "...", "machine": "x86_64"},
+  "command": {"argv": ["spike", "-m256", "+dev-traffic-record=rec", "/boot/pk", "app"], "cwd": "/the/working/directory"},
+  "simulator": {"name": "spike", "build": {"repository": "...", "version": "...", "commit": "...", ...}},
+  "fesvr": {"repository": "...", "version": "...", "commit": "...", ...}
+}
+```
+
+- `started` and `finished` are local times with their UTC offset; `time_zone` names the zone. The file is written when the recording starts, and again with `finished` when it is closed: a recording whose process died has no `finished`.
+- `uname` is the recording machine, from `uname(2)`.
+- `command` is the simulator's exact command line and working directory.
+- `simulator` and `fesvr` are the build information of the simulator and of its libfesvr, as `--version` prints it. The simulator gives its part with `htif_t::set_simulator_provenance()`; without it, there is no `simulator` and no `command.argv`.
+- A recording made while replaying another (`+dev-traffic-record` with `+dev-traffic-replay`) copies the replayed traffic, so it gets a verbatim copy of the replayed recording's file, or none if that has none.
 
 **`target_spec.data`** (40 bytes):
 
