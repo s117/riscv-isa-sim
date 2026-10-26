@@ -49,6 +49,9 @@ if (DEFINED NO_DUFF_DEVICE)
     target_compile_definitions(riscv PUBLIC STEPPING_WITHOUT_DUFF_DEVICE)
 endif ()
 
+# RISCV_ENABLE_SIMPOINT changes the layout of processor_t, so every target that includes processor.h must agree on it.
+# Put it on riscv-interface, which riscv and the extension plugins all link, rather than on riscv alone: otherwise an
+# extension sees a smaller processor_t and reads the wrong members (get_dbg_tracer() returns garbage).
 if (NOT DEFINED NO_SIMPOINT)
-    target_compile_definitions(riscv PUBLIC RISCV_ENABLE_SIMPOINT)
+    target_compile_definitions(riscv-interface INTERFACE RISCV_ENABLE_SIMPOINT)
 endif ()
